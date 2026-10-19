@@ -1,0 +1,13 @@
+# Types Claude Code writes on load (claude --plugin-dir .)
+.claude-plugin/types/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.vscode/
+.idea/
+
+# Logs
+*.log

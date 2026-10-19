@@ -1,0 +1,6 @@
+{
+  "name": "agents-pane",
+  "description": "agents-pane: a live view of the subagents working in your Claude Code session",
+  "owner": { "name": "Bruno Cabral", "url": "https://github.com/bruno88cabral" },
+  "plugins": [{ "name": "agents-pane", "source": "./" }]
+}
