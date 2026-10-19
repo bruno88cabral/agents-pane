@@ -92,3 +92,39 @@ test('with language pt-BR the pane speaks Portuguese', { options: { language: 'p
   expect(await ui.find({ type: 'Text', text: /1 a disparar/ })).toBeDefined()
   await ui.unmount()
 })
+
+const TODOS = [
+  { content: 'Plan', status: 'pending', activeForm: 'Planning' },
+  { content: 'Build', status: 'in_progress', activeForm: 'Building' },
+  { content: 'Ship', status: 'completed', activeForm: 'Shipping' },
+] as const
+
+test('TodoWrite from the main loop feeds the task line', async ($, on) => {
+  mock.clock(on)
+  on('agent.list', () => ({ value: [] }))
+  on('tool.call', { tool: 'TodoWrite' }, () => ({
+    result: { oldTodos: [], newTodos: TODOS },
+  }))
+
+  await $.tool.call({ tool: 'TodoWrite', todos: TODOS })
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /1 to start/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /1 in progress/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /1 done/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('TodoWrite from a subagent leaves the task line alone', async ($, on) => {
+  mock.clock(on)
+  on('agent.list', () => ({ value: [] }))
+  on('tool.call', { tool: 'TodoWrite' }, () => ({
+    result: { oldTodos: [], newTodos: TODOS },
+  }))
+
+  await $.tool.call({ tool: 'TodoWrite', todos: TODOS, agentId: 'a1' })
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /to start/ })).toBeUndefined()
+  await ui.unmount()
+})

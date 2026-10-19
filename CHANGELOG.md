@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1
+
+- The task line also follows `TodoWrite`, so it shows with every model.
+- The type column fits "general-purpose" without cutting it.
+- The README example now matches the real layout.
+
 ## 0.3.0
 
 - Split the code into a harness-agnostic core (`hooks/core.ts`) and a Claude Code adapter (`hooks/register.tsx`).
