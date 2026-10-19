@@ -11,7 +11,7 @@ When you run long orchestrations with many subagents in the background, it is ha
 
 - **Live list of subagents**: status, type, task description, tool calls and elapsed time for each one. Background agents are marked with `bg`.
 - **Agent summary with a bar**: running, done and failed, in proportion, always on top.
-- **Orchestration summary**: when Claude uses a task list (`TaskCreate` / `TaskUpdate`), the pane also shows how many tasks are still to start, in progress and done.
+- **Orchestration summary**: when Claude uses a task list (`TaskCreate` / `TaskUpdate` / `TodoWrite`), the pane also shows how many tasks are still to start, in progress and done.
 - **Fixed header**: the summary stays visible while you scroll the list.
 - **Catches up**: agents that started before the plugin loaded (or before a `/reload-plugins`) are picked up too.
 - **English and Portuguese** labels.
@@ -19,14 +19,14 @@ When you run long orchestrations with many subagents in the background, it is ha
 
 ```
 Agents  ● 2 running  ✓ 9 done  · 11 total
- ██████████████████████████████████████████████
+ ██████████████████████████████████████████████████████████████████████
 Tasks  ○ 3 to start  ◐ 2 in progress  ✓ 9 done  · 14 total
- ░░░░░░░░░░████████████████████████████████████
-──────────────────────────────────────────────────
-✓ general-purpose Implement E1: core model             42t  12m05   bg
-✓ general-purpose Review E1: core model                 9t   1m18   bg
-● general-purpose Implement E2: task list summary      17t   3m40   bg
-● Explore         Find all places that read state       6t     52s
+ ░░░░░░░░░░░░░░░███████████████████████████████████████████████████████
+────────────────────────────────────────────────────────────────────────
+✓ general-purpose Implement E1: core model                 42t  12m05 bg
+✓ general-purpose Review E1: core model                     9t   1m18 bg
+● general-purpose Implement E2: task list summary          17t   3m40 bg
+● Explore         Find all places that read state           6t    52s
 ```
 
 ## Install
@@ -69,14 +69,14 @@ Change it in the Claude Code config menu (`/config`), under **agents-pane**.
 
 The plugin is a Claude Code hooks module. It listens to a few engine events and keeps a small state per session:
 
-| Event                         | What the pane does with it                              |
-| ----------------------------- | ------------------------------------------------------- |
-| `agent.spawn`                 | Adds a row with type, description, model and start time |
-| `tool.call` inside an agent   | Counts one tool call for that agent                     |
-| `SubagentStop`                | Marks the agent as done and stops its clock             |
-| `tool.call` on `Agent`        | Marks the agent as failed when the call errors          |
-| `TaskCreate` / `TaskUpdate` / `TaskList` | Keeps the orchestration task list in sync    |
-| `$.agent.list()` every second | Shows finer live states (waiting, idle) and adopts agents it has not seen yet |
+| Event                                                  | What the pane does with it                                                    |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| `agent.spawn`                                          | Adds a row with type, description, model and start time                       |
+| `tool.call` inside an agent                            | Counts one tool call for that agent                                           |
+| `SubagentStop`                                         | Marks the agent as done and stops its clock                                   |
+| `tool.call` on `Agent`                                 | Marks the agent as failed when the call errors                                |
+| `TaskCreate` / `TaskUpdate` / `TaskList` / `TodoWrite` | Keeps the orchestration task list in sync                                     |
+| `$.agent.list()` every second                          | Shows finer live states (waiting, idle) and adopts agents it has not seen yet |
 
 The plugin never changes what Claude does. Every hook passes the event on untouched, and if a hook fails it is skipped.
 

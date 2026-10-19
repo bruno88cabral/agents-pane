@@ -20,6 +20,7 @@ import {
   isLive,
   labels,
   summarize,
+  tasksFromTodos,
   tone,
   updateTask,
   upsertTask,
@@ -123,7 +124,7 @@ export const register: Register = (on, options) => {
     return next(e)
   }).catch(($, e, next) => next(e))
 
-  // ---- orchestration task list (TaskCreate / TaskUpdate / TaskList) ----
+  // ---- orchestration task list (TaskCreate / TaskUpdate / TaskList / TodoWrite) ----
 
   on('tool.call', { tool: 'TaskCreate' }, async ($, e, next) => {
     const ran = await next(e)
@@ -156,6 +157,16 @@ export const register: Register = (on, options) => {
       await update($, tasks, () =>
         list.map(task => ({ id: task.id, subject: task.subject, status: task.status })),
       )
+    }
+    return ran
+  }).catch(($, e, next) => next(e))
+
+  on('tool.call', { tool: 'TodoWrite' }, async ($, e, next) => {
+    const ran = await next(e)
+    // Only the main loop's list is the orchestration plan; a subagent's own
+    // TodoWrite must not replace it.
+    if (!e.agentId && !ran.isError && ran.deny === undefined) {
+      await update($, tasks, () => tasksFromTodos(e.todos))
     }
     return ran
   }).catch(($, e, next) => next(e))

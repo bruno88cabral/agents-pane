@@ -14,6 +14,7 @@ import {
   fit,
   labels,
   summarize,
+  tasksFromTodos,
   updateTask,
   upsertTask,
 } from './core'
@@ -85,6 +86,25 @@ describe('tasks', () => {
   })
 })
 
+describe('todos', () => {
+  test('tasksFromTodos turns each todo into a task with a positional id', async () => {
+    const todos = [
+      { content: 'Plan', status: 'pending' as const },
+      { content: 'Build', status: 'in_progress' as const },
+      { content: 'Ship', status: 'completed' as const },
+    ]
+    expect(tasksFromTodos(todos)).toEqual([
+      { id: 'todo-0', subject: 'Plan', status: 'pending' },
+      { id: 'todo-1', subject: 'Build', status: 'in_progress' },
+      { id: 'todo-2', subject: 'Ship', status: 'completed' },
+    ])
+  })
+
+  test('tasksFromTodos of an empty list is empty', async () => {
+    expect(tasksFromTodos([])).toEqual([])
+  })
+})
+
 describe('summary', () => {
   test('counts live states as running and killed as failed', async () => {
     const s = summarize(
@@ -120,6 +140,10 @@ describe('layout', () => {
   test('columns always add up to the width on a normal pane', async () => {
     const c = columns(100)
     expect(2 + c.type + 1 + c.description + 1 + c.tools + c.time + c.background).toBe(100)
+  })
+
+  test('the type column fits general-purpose without cutting it', async () => {
+    expect(fit('general-purpose', columns(80).type)).toBe('general-purpose')
   })
 
   test('fit cuts with an ellipsis or pads to the width', async () => {

@@ -79,6 +79,12 @@ export const updateTask = (
         t.id === id ? { ...t, status: to, subject: subject ?? t.subject } : t,
       )
 
+/** TodoWrite always sends the whole list, so each call replaces the tasks. */
+export const tasksFromTodos = (
+  todos: ReadonlyArray<{ content: string; status: TaskStatus }>,
+): TaskRow[] =>
+  todos.map((todo, i) => ({ id: `todo-${i}`, subject: todo.content, status: todo.status }))
+
 // ---------- status ----------
 
 const LIVE: ReadonlySet<LiveStatus> = new Set(['running', 'pending', 'waiting', 'idle'])
@@ -175,7 +181,7 @@ export type Columns = {
 
 /** Column widths for one agent row, given the body width in cells. */
 export const columns = (width: number): Columns => {
-  const fixed = { type: 14, tools: 5, time: 7, background: 3 }
+  const fixed = { type: 15, tools: 5, time: 7, background: 3 }
   // glyph + space (2), and one space before description and before tools
   const description = Math.max(
     8,
