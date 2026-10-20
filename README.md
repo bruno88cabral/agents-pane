@@ -4,18 +4,7 @@ A live pane for Claude Code that shows every subagent working in your session.
 
 When you run long orchestrations with many subagents in the background, it is hard to know what is going on. `/tasks` gives you a raw list. **agents-pane** gives you a dashboard: who is running, who is done, how long each one took, and how far the orchestration plan has come.
 
-<!-- Record a short GIF of the pane during a real orchestration and save it as docs/demo.gif -->
-![agents-pane demo](docs/demo.gif)
-
-## Features
-
-- **Live list of subagents**: status, type, task description, tool calls and elapsed time for each one. Background agents are marked with `bg`.
-- **Agent summary with a bar**: running, done and failed, in proportion, always on top.
-- **Orchestration summary**: when Claude uses a task list (`TaskCreate` / `TaskUpdate` / `TodoWrite`), the pane also shows how many tasks are still to start, in progress and done.
-- **Fixed header**: the summary stays visible while you scroll the list.
-- **Catches up**: agents that started before the plugin loaded (or before a `/reload-plugins`) are picked up too.
-- **English and Portuguese** labels.
-- **Works on every Claude Code surface**: terminal, desktop app and VS Code.
+<!-- Record a short GIF of the pane during a real orchestration, save it as docs/demo.gif and add it here: ![agents-pane demo](docs/demo.gif) -->
 
 ```
 Agents  ● 2 running  ✓ 9 done  · 11 total
@@ -29,6 +18,16 @@ Tasks  ○ 3 to start  ◐ 2 in progress  ✓ 9 done  · 14 total
 ● Explore         Find all places that read state           6t    52s
 ```
 
+## Features
+
+- **Live list of subagents**: status, type, task description, tool calls and elapsed time for each one. Background agents are marked with `bg`.
+- **Agent summary with a bar**: running, done and failed, in proportion, always on top.
+- **Orchestration summary**: when Claude uses a task list (`TaskCreate` / `TaskUpdate` / `TodoWrite`), the pane also shows how many tasks are still to start, in progress and done.
+- **Fixed header**: the summary stays visible while you scroll the list.
+- **Catches up**: agents that started before the plugin loaded (or before a `/reload-plugins`) are picked up too.
+- **English and Portuguese** labels.
+- **Works on every Claude Code surface**: terminal, desktop app and VS Code.
+
 ## Install
 
 In a Claude Code session:
@@ -38,6 +37,13 @@ In a Claude Code session:
 ```
 
 Answer `y` to add the marketplace and choose the **user** scope, so the pane works in all your projects.
+
+On an older Claude Code without `--marketplace`, add the marketplace first:
+
+```
+/plugin marketplace add bruno88cabral/agents-pane
+/plugin install agents-pane@agents-pane
+```
 
 From a shell, the same thing:
 
