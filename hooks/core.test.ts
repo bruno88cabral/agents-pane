@@ -11,7 +11,7 @@ import {
   elapsed,
   endAgent,
   fit,
-  smallText,
+  bigText,
   labels,
   projectName,
   repoName,
@@ -183,13 +183,13 @@ describe('project and context', () => {
     expect(repoName('git@github.com:')).toBeUndefined()
   })
 
-  test('smallText draws two rows, four cells a letter', async () => {
-    expect(smallText('ab', 80)).toEqual(['▄▀▄ ██', '█▀█ █▄█'])
-    expect(smallText('agents-pane', 43)?.length).toBe(2)
+  test('bigText draws three rows, four cells a letter', async () => {
+    expect(bigText('ab', 80)).toEqual(['▄▀▄ █▀▄', '█▀█ █▀▄', '▀ ▀ ▀▀'])
+    expect(bigText('agents-pane', 43)?.length).toBe(3)
   })
 
-  test('smallText gives up when it does not fit or a letter has no glyph', async () => {
-    expect(smallText('agents-pane', 42)).toBeUndefined()
-    expect(smallText('café', 80)).toBeUndefined()
+  test('bigText gives up when it does not fit or a letter has no glyph', async () => {
+    expect(bigText('agents-pane', 42)).toBeUndefined()
+    expect(bigText('café', 80)).toBeUndefined()
   })
 })

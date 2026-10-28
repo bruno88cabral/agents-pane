@@ -2,7 +2,7 @@
 
 import { expect, mock, test } from 'claude-code/testing'
 
-import { smallText } from './core'
+import { bigText } from './core'
 
 const PANE = {
   plugin: 'agents-pane',
@@ -152,7 +152,7 @@ test('the name of the GitHub repo heads the pane in big letters, the context fil
   }))
 
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  for (const row of smallText('agents-pane', 80)!) {
+  for (const row of bigText('agents-pane', 80)!) {
     expect(await ui.find({ type: 'Text', text: row })).toBeDefined()
   }
   expect(await ui.find({ type: 'Text', text: /feature-x/ })).toBeUndefined()

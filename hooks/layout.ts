@@ -4,11 +4,11 @@
 // Each line is a list of segments carrying a color role, so the adapter only
 // paints them and the tests read them as plain strings with `plain()`.
 
-import { barCells, elapsed, fit, isLive, smallText, tokens } from './core'
+import { barCells, bigText, elapsed, fit, isLive, tokens } from './core'
 import type { Labels, LiveStatus } from './core'
 
-/** The four color layers of the pane; no tone is the terminal's own color. */
-export type Tone = 'accent' | 'ok' | 'error' | 'dim'
+/** The color roles of the pane; no tone is the terminal's own color. */
+export type Tone = 'accent' | 'ok' | 'warn' | 'error' | 'dim'
 
 export type Segment = { text: string; tone?: Tone; bold?: boolean; title?: boolean }
 export type Line = Segment[]
@@ -213,17 +213,24 @@ const columnsFor = (agents: readonly LayoutAgent[], input: LayoutInput): Columns
 
 // ---------- header ----------
 
+const blank: Line = [seg('')]
+
 const title = (input: LayoutInput, compact: boolean): Line[] => {
   const name = input.name
   if (!name) return []
   if (!input.terminal) return [[{ text: name, tone: 'accent', bold: true, title: true }]]
-  const big = !compact && !input.ascii ? smallText(name, input.width - GUTTER.length) : undefined
+  const big = !compact && !input.ascii ? bigText(name, input.width - GUTTER.length) : undefined
   if (big) return big.map(row => [seg(GUTTER), seg(row, 'accent', true)])
   return [[seg(GUTTER), seg(name.toUpperCase(), 'accent', true)]]
 }
 
-const contextTone = (pct: number | undefined): Tone | undefined =>
-  pct !== undefined && pct >= 85 ? 'error' : undefined
+/** Green below 70%, yellow from 70%, red from 85%. */
+const contextTone = (pct: number | undefined): Tone | undefined => {
+  if (pct === undefined) return undefined
+  if (pct >= 85) return 'error'
+  if (pct >= 70) return 'warn'
+  return 'ok'
+}
 
 const stats = (input: LayoutInput): Line[] => {
   const t = input.labels
@@ -239,12 +246,13 @@ const stats = (input: LayoutInput): Line[] => {
       statRow(
         t.statContext,
         `${ctx.tokens !== undefined ? tokens(ctx.tokens) : '—'} / ${tokens(ctx.window)}`,
-        undefined,
+        ctx.tokens !== undefined ? tone : 'dim',
         bar([{ value: Math.min(100, used), tone }], 100, fillWidth, input.ascii),
         ctx.percent !== undefined ? `${ctx.percent}%` : '',
         tone,
         [],
       ),
+      blank,
     )
   }
 
@@ -258,11 +266,16 @@ const stats = (input: LayoutInput): Line[] => {
       t.statAgents,
       ratio(done + failed, agents.length, t.doneShort),
       undefined,
-      bar([{ value: done }, { value: failed, tone: 'error' }], agents.length, fillWidth, input.ascii),
+      bar(
+        [{ value: done, tone: 'ok' }, { value: failed, tone: 'error' }, { value: running, tone: 'accent' }],
+        agents.length,
+        fillWidth,
+        input.ascii,
+      ),
       agents.length > 0 ? `${percent(done + failed, agents.length)}%` : '',
       undefined,
       [
-        seg(`   ${dot} ${running} ${t.running}`, 'dim'),
+        seg(`   ${dot} ${running} ${t.running}`, 'accent'),
         ...(failed > 0 ? [seg(`  ${input.ascii ? 'x' : '✗'} ${failed} ${t.failed}`, 'error')] : []),
       ],
     ),
@@ -275,10 +288,10 @@ const stats = (input: LayoutInput): Line[] => {
         t.statTasks,
         ratio(tasks.done, tasks.total, t.doneShort),
         undefined,
-        bar([{ value: tasks.done }], tasks.total, fillWidth, input.ascii),
+        bar([{ value: tasks.done, tone: 'ok' }, { value: tasks.active, tone: 'warn' }], tasks.total, fillWidth, input.ascii),
         `${percent(tasks.done, tasks.total)}%`,
         undefined,
-        [seg(`   ${input.ascii ? '..' : '◐'} ${tasks.active} ${t.activeShort}`, 'dim')],
+        [seg(`   ${input.ascii ? '..' : '◐'} ${tasks.active} ${t.activeShort}`, 'warn')],
       ),
     )
   }
@@ -304,8 +317,6 @@ const separator = (input: LayoutInput): Line => {
 }
 
 // ---------- the pane ----------
-
-const blank: Line = [seg('')]
 
 export const layout = (input: LayoutInput): Layout => {
   const compact = input.height < COMPACT_HEIGHT

@@ -3,7 +3,7 @@
 // Nothing in this file knows about Claude Code: no `$`, no hooks, no UI
 // elements. It holds the data model, the reducers that update it, and the
 // pure helpers the layout uses (counts, bar cells, time and token formatting,
-// the small font, labels). An adapter for another harness only needs to turn
+// the big font, labels). An adapter for another harness only needs to turn
 // that harness's events into calls to these functions and paint ./layout.ts.
 
 // ---------- model ----------
@@ -183,30 +183,30 @@ export const repoName = (remote: string): string | undefined => {
   return name && !name.includes('@') ? name : undefined
 }
 
-// A 3x4 pixel font, four rows of three, drawn with half blocks so each
-// letter takes two rows and four columns.
+// A 3x5 pixel font, five rows of three, drawn with half blocks so each
+// letter takes three rows and four columns.
 const FONT: Record<string, string> = {
-  a: '.#. #.# ### #.#', b: '##. ##. #.# ###', c: '### #.. #.. ###', d: '##. #.# #.# ##.',
-  e: '### ##. #.. ###', f: '### ##. #.. #..', g: '### #.. #.# ###', h: '#.# ### #.# #.#',
-  i: '### .#. .#. ###', j: '..# ..# #.# .#.', k: '#.# ##. #.# #.#', l: '#.. #.. #.. ###',
-  m: '### ### #.# #.#', n: '##. #.# #.# #.#', o: '### #.# #.# ###', p: '### #.# ### #..',
-  q: '### #.# ### ..#', r: '##. #.# ##. #.#', s: '.## #.. ..# ##.', t: '### .#. .#. .#.',
-  u: '#.# #.# #.# ###', v: '#.# #.# #.# .#.', w: '#.# #.# ### #.#', x: '#.# .#. .#. #.#',
-  y: '#.# .#. .#. .#.', z: '### ..# #.. ###', '0': '### #.# #.# ###', '1': '##. .#. .#. ###',
-  '2': '##. ..# #.. ###', '3': '##. .## ..# ##.', '4': '#.# ### ..# ..#', '5': '### ##. ..# ##.',
-  '6': '#.. ### #.# ###', '7': '### ..# .#. .#.', '8': '### .#. #.# ###', '9': '### #.# ### ..#',
-  '-': '... ### ... ...', '_': '... ... ... ###', '.': '... ... ... .#.', ' ': '... ... ... ...',
+  a: '.#. #.# ### #.# #.#', b: '##. #.# ##. #.# ##.', c: '.## #.. #.. #.. .##', d: '##. #.# #.# #.# ##.',
+  e: '### #.. ##. #.. ###', f: '### #.. ##. #.. #..', g: '.## #.. #.# #.# .##', h: '#.# #.# ### #.# #.#',
+  i: '### .#. .#. .#. ###', j: '..# ..# ..# #.# .#.', k: '#.# #.# ##. #.# #.#', l: '#.. #.. #.. #.. ###',
+  m: '#.# ### ### #.# #.#', n: '##. #.# #.# #.# #.#', o: '.#. #.# #.# #.# .#.', p: '##. #.# ##. #.. #..',
+  q: '.#. #.# #.# ##. .##', r: '##. #.# ##. #.# #.#', s: '.## #.. .#. ..# ##.', t: '### .#. .#. .#. .#.',
+  u: '#.# #.# #.# #.# ###', v: '#.# #.# #.# #.# .#.', w: '#.# #.# ### ### #.#', x: '#.# #.# .#. #.# #.#',
+  y: '#.# #.# .#. .#. .#.', z: '### ..# .#. #.. ###', '0': '### #.# #.# #.# ###', '1': '.#. ##. .#. .#. ###',
+  '2': '##. ..# .#. #.. ###', '3': '##. ..# .#. ..# ##.', '4': '#.# #.# ### ..# ..#', '5': '### #.. ##. ..# ##.',
+  '6': '.## #.. ### #.# ###', '7': '### ..# .#. .#. .#.', '8': '### #.# ### #.# ###', '9': '### #.# ### ..# ##.',
+  '-': '... ... ### ... ...', '_': '... ... ... ... ###', '.': '... ... ... ... .#.', ' ': '... ... ... ... ...',
 }
 
 /**
- * `text` in letters two rows tall, of half blocks, or undefined when a
- * character has no glyph or the letters need more than `width` cells.
+ * `text` in big letters, 3 rows of half blocks, or undefined when a character
+ * has no glyph or the letters need more than `width` cells.
  */
-export const smallText = (text: string, width: number): string[] | undefined => {
+export const bigText = (text: string, width: number): string[] | undefined => {
   const glyphs = [...text.toLowerCase()].map(c => FONT[c]?.split(' '))
   if (glyphs.some(g => g === undefined) || glyphs.length * 4 - 1 > width) return undefined
   const on = (g: string[], row: number, col: number) => g[row]?.[col] === '#'
-  return [0, 2].map(row =>
+  return [0, 2, 4].map(row =>
     glyphs
       .map(g =>
         [0, 1, 2]

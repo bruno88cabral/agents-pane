@@ -32,9 +32,10 @@ const agents = atom({ plugin: 'agents-pane', key: 'agents' } as const, [])
 const tasks = atom({ plugin: 'agents-pane', key: 'tasks' } as const, [])
 
 // Layout tones to Claude Code theme keys; `dim` is the terminal's dim text.
-const COLOR: Record<Exclude<Tone, 'dim'>, 'claude' | 'success' | 'error'> = {
+const COLOR: Record<Exclude<Tone, 'dim'>, 'claude' | 'success' | 'warning' | 'error'> = {
   accent: 'claude',
   ok: 'success',
+  warn: 'warning',
   error: 'error',
 }
 
