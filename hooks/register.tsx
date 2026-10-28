@@ -12,6 +12,7 @@ import {
   adoptAgents,
   barCells,
   columns,
+  contextTone,
   countToolCall,
   elapsed,
   endAgent,
@@ -19,8 +20,10 @@ import {
   glyph,
   isLive,
   labels,
+  projectName,
   summarize,
   tasksFromTodos,
+  tokens,
   tone,
   updateTask,
   upsertTask,
@@ -173,13 +176,21 @@ export const register: Register = (on, options) => {
 
   // ---- the pane ----
 
+  // The context line follows the fill as soon as it moves, not on the next tick.
+  on('session.measure', async ($, e, next) => {
+    if (e.changed.includes('context')) $.ui.invalidate('ui.render')
+    return next(e)
+  }).catch(($, e, next) => next(e))
+
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Text } = $.ui.resolve(e)
-    const [history, taskList, live, now] = await Promise.all([
+    const [history, taskList, live, now, root, usage] = await Promise.all([
       read($, agents),
       read($, tasks),
       $.agent.list(),
       $.clock.now(),
+      $.session.root().catch(() => undefined),
+      $.session.usage().catch(() => undefined),
     ])
 
     // The stored status says running until we see the end; the engine's
@@ -206,10 +217,39 @@ export const register: Register = (on, options) => {
       barWidth,
     )
 
+    // tokens and percent stay unknown until the first response of the live
+    // window (a fresh session, or one just compacted).
+    const ctx = usage?.context
+    const ctxBarWidth = 20
+    const ctxUsed =
+      ctx?.percent !== undefined
+        ? Math.min(ctxBarWidth, Math.max(ctx.percent > 0 ? 1 : 0, Math.round((ctx.percent / 100) * ctxBarWidth)))
+        : 0
+    const ctxFree = ctxBarWidth - ctxUsed
+    const ctxColor = COLOR[contextTone(ctx?.percent ?? 0)]
+
     // The header is drawn at the scroll offset, so it stays on the first
     // visible row while the list scrolls under it.
     const header = (
       <Box flexDirection="column">
+        {(root || ctx) && (
+          <Text wrap="truncate-end">
+            {root && <Text bold>{projectName(root)}</Text>}
+            {root && ctx && <Text dimColor>  ·  </Text>}
+            {ctx && (
+              <Text>
+                <Text dimColor>{t.context} </Text>
+                <Text color={ctx.tokens !== undefined ? ctxColor : undefined} dimColor={ctx.tokens === undefined}>
+                  {ctx.tokens !== undefined ? tokens(ctx.tokens) : '—'}
+                </Text>
+                <Text dimColor> / {tokens(ctx.window)}  </Text>
+                <Text color={ctxColor}>{'█'.repeat(ctxUsed)}</Text>
+                <Text dimColor>{'░'.repeat(ctxFree)}</Text>
+                {ctx.percent !== undefined && <Text color={ctxColor}> {ctx.percent}%</Text>}
+              </Text>
+            )}
+          </Text>
+        )}
         <Text bold wrap="truncate-end">
           {t.agents}  <Text color={COLOR.active}>● {s.agents.running} {t.running}</Text>
           {'  '}

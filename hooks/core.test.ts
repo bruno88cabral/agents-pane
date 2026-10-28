@@ -12,8 +12,11 @@ import {
   elapsed,
   endAgent,
   fit,
+  contextTone,
   labels,
+  projectName,
   summarize,
+  tokens,
   tasksFromTodos,
   updateTask,
   upsertTask,
@@ -163,5 +166,28 @@ describe('labels', () => {
     expect(labels(undefined).running).toBe('running')
     expect(labels('pt-BR').running).toBe('rodando')
     expect(labels('fr').running).toBe('running')
+  })
+})
+
+describe('project and context', () => {
+  test('projectName takes the last folder of the path', async () => {
+    expect(projectName('/home/me/workspace/agents-pane')).toBe('agents-pane')
+    expect(projectName('/home/me/workspace/agents-pane/')).toBe('agents-pane')
+    expect(projectName('C:\\work\\agents-pane')).toBe('agents-pane')
+  })
+
+  test('tokens are short', async () => {
+    expect(tokens(950)).toBe('950')
+    expect(tokens(84_321)).toBe('84k')
+    expect(tokens(200_000)).toBe('200k')
+    expect(tokens(1_000_000)).toBe('1M')
+    expect(tokens(1_250_000)).toBe('1.3M')
+  })
+
+  test('contextTone warns at 70% and alarms at 85%', async () => {
+    expect(contextTone(42)).toBe('success')
+    expect(contextTone(70)).toBe('warning')
+    expect(contextTone(84)).toBe('warning')
+    expect(contextTone(85)).toBe('error')
   })
 })
