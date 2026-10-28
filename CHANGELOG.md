@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.0
+
+- The pane is headed by the name of the GitHub repo, read from the `origin` remote, so it stays the same in every worktree. Without a remote it falls back to the folder.
+- The name is drawn in big letters on the terminal (three rows of half blocks) and as a title on the other surfaces; it falls back to one bold line when the pane is too narrow.
+- The context fill now has a line of its own, under the name.
+
 ## 0.4.0
 
 - A top line with the project folder and the context window fill of the session: tokens used, the window size, a bar and the percentage, green below 70%, yellow from 70% and red from 85%.

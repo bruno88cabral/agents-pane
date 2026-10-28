@@ -12,9 +12,11 @@ import {
   elapsed,
   endAgent,
   fit,
+  bigText,
   contextTone,
   labels,
   projectName,
+  repoName,
   summarize,
   tokens,
   tasksFromTodos,
@@ -189,5 +191,22 @@ describe('project and context', () => {
     expect(contextTone(70)).toBe('warning')
     expect(contextTone(84)).toBe('warning')
     expect(contextTone(85)).toBe('error')
+  })
+  test('repoName reads the name from any remote URL', async () => {
+    expect(repoName('git@github.com:me/agents-pane.git')).toBe('agents-pane')
+    expect(repoName('https://github.com/me/agents-pane')).toBe('agents-pane')
+    expect(repoName('https://github.com/me/agents-pane.git/')).toBe('agents-pane')
+    expect(repoName('ssh://git@github.com/me/agents-pane.git')).toBe('agents-pane')
+    expect(repoName('git@github.com:')).toBeUndefined()
+  })
+
+  test('bigText draws three rows, four cells a letter', async () => {
+    expect(bigText('ab', 80)).toEqual(['▄▀▄ █▀▄', '█▀█ █▀▄', '▀ ▀ ▀▀'])
+    expect(bigText('agents-pane', 43)?.length).toBe(3)
+  })
+
+  test('bigText gives up when it does not fit or a letter has no glyph', async () => {
+    expect(bigText('agents-pane', 42)).toBeUndefined()
+    expect(bigText('café', 80)).toBeUndefined()
   })
 })

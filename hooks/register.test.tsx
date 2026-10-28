@@ -2,6 +2,8 @@
 
 import { expect, mock, test } from 'claude-code/testing'
 
+import { bigText } from './core'
+
 const PANE = {
   plugin: 'agents-pane',
   component: 'Pane',
@@ -129,18 +131,39 @@ test('TodoWrite from a subagent leaves the task line alone', async ($, on) => {
   await ui.unmount()
 })
 
-test('the top line shows the project folder and the context fill', async ($, on) => {
+test('the name of the GitHub repo heads the pane in big letters, the context fill under it', async ($, on) => {
   mock.clock(on)
   on('agent.list', () => ({ value: [] }))
-  on('session.root', () => ({ value: '/home/me/workspace/agents-pane' }))
+  on('session.root', () => ({ value: '/home/me/worktrees/feature-x' }))
+  on('session.repo', () => ({
+    value: { root: '/home/me/workspace/agents-pane', remote: 'git@github.com:me/agents-pane.git', internal: false, name: null },
+  }))
   on('session.usage', () => ({
     value: { startedAt: 0, context: { tokens: 84_000, window: 200_000, percent: 42 }, rateLimits: [] },
   }))
 
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  expect(await ui.find({ type: 'Text', text: /^agents-pane$/ })).toBeDefined()
+  for (const row of bigText('agents-pane', 80)!) {
+    expect(await ui.find({ type: 'Text', text: row })).toBeDefined()
+  }
+  expect(await ui.find({ type: 'Text', text: /feature-x/ })).toBeUndefined()
   expect(await ui.find({ type: 'Text', text: /context 84k \/ 200k/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /42%/ })).toBeDefined()
+  await ui.unmount()
+
+  const desktop = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await desktop.find({ type: 'Text', text: /^agents-pane$/ })).toBeDefined()
+  await desktop.unmount()
+})
+
+test('without a remote the name falls back to the folder', async ($, on) => {
+  mock.clock(on)
+  on('agent.list', () => ({ value: [] }))
+  on('session.root', () => ({ value: '/home/me/workspace/scratch' }))
+  on('session.repo', () => ({ value: null }))
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await ui.find({ type: 'Text', text: /^scratch$/ })).toBeDefined()
   await ui.unmount()
 })
 
