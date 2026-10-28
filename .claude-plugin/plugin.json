@@ -1,6 +1,6 @@
 {
   "name": "agents-pane",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "A live pane in Claude Code that shows every subagent of the session: type, task, status, tool calls and elapsed time, plus a summary of the orchestration task list.",
   "author": { "name": "Bruno Cabral", "url": "https://github.com/bruno88cabral" },
   "homepage": "https://github.com/bruno88cabral/agents-pane",

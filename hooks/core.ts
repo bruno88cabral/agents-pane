@@ -2,9 +2,9 @@
 //
 // Nothing in this file knows about Claude Code: no `$`, no hooks, no UI
 // elements. It holds the data model, the reducers that update it, and the
-// pure math behind the pane (counts, bar widths, column widths, time
-// formatting, labels). An adapter for another harness only needs to turn
-// that harness's events into calls to these functions and draw the result.
+// pure helpers the layout uses (counts, bar cells, time and token formatting,
+// the small font, labels). An adapter for another harness only needs to turn
+// that harness's events into calls to these functions and paint ./layout.ts.
 
 // ---------- model ----------
 
@@ -91,28 +91,6 @@ const LIVE: ReadonlySet<LiveStatus> = new Set(['running', 'pending', 'waiting', 
 
 export const isLive = (s: LiveStatus): boolean => LIVE.has(s)
 
-export const glyph = (status: LiveStatus): string =>
-  ({
-    pending: '○',
-    running: '●',
-    waiting: '◐',
-    idle: '◌',
-    completed: '✓',
-    failed: '✗',
-    killed: '✗',
-  })[status]
-
-/** Semantic color roles. Each adapter maps them to its own palette. */
-export type Tone = 'active' | 'success' | 'error' | 'warning' | 'muted'
-
-export const tone = (status: LiveStatus): Tone => {
-  if (status === 'completed') return 'success'
-  if (status === 'failed' || status === 'killed') return 'error'
-  if (status === 'waiting' || status === 'pending') return 'warning'
-  if (status === 'running') return 'active'
-  return 'muted'
-}
-
 // ---------- summary ----------
 
 export type Summary = {
@@ -171,25 +149,6 @@ export const barCells = (values: readonly number[], width: number): number[] => 
   return cells
 }
 
-export type Columns = {
-  type: number
-  description: number
-  tools: number
-  time: number
-  background: number
-}
-
-/** Column widths for one agent row, given the body width in cells. */
-export const columns = (width: number): Columns => {
-  const fixed = { type: 15, tools: 5, time: 7, background: 3 }
-  // glyph + space (2), and one space before description and before tools
-  const description = Math.max(
-    8,
-    width - 2 - fixed.type - 1 - fixed.tools - 1 - fixed.time - fixed.background,
-  )
-  return { ...fixed, description }
-}
-
 // ---------- text ----------
 
 export const elapsed = (from: number, to: number): string => {
@@ -197,7 +156,7 @@ export const elapsed = (from: number, to: number): string => {
   if (s < 60) return `${s}s`
   const m = Math.floor(s / 60)
   if (m < 60) return `${m}m${String(s % 60).padStart(2, '0')}`
-  return `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}`
+  return `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}m`
 }
 
 /** Cuts or pads `text` to exactly `width` cells. */
@@ -224,30 +183,30 @@ export const repoName = (remote: string): string | undefined => {
   return name && !name.includes('@') ? name : undefined
 }
 
-// A 3x5 pixel font, five rows of three, drawn with half blocks so each
-// letter takes three rows and four columns.
+// A 3x4 pixel font, four rows of three, drawn with half blocks so each
+// letter takes two rows and four columns.
 const FONT: Record<string, string> = {
-  a: '.#. #.# ### #.# #.#', b: '##. #.# ##. #.# ##.', c: '.## #.. #.. #.. .##', d: '##. #.# #.# #.# ##.',
-  e: '### #.. ##. #.. ###', f: '### #.. ##. #.. #..', g: '.## #.. #.# #.# .##', h: '#.# #.# ### #.# #.#',
-  i: '### .#. .#. .#. ###', j: '..# ..# ..# #.# .#.', k: '#.# #.# ##. #.# #.#', l: '#.. #.. #.. #.. ###',
-  m: '#.# ### ### #.# #.#', n: '##. #.# #.# #.# #.#', o: '.#. #.# #.# #.# .#.', p: '##. #.# ##. #.. #..',
-  q: '.#. #.# #.# ##. .##', r: '##. #.# ##. #.# #.#', s: '.## #.. .#. ..# ##.', t: '### .#. .#. .#. .#.',
-  u: '#.# #.# #.# #.# ###', v: '#.# #.# #.# #.# .#.', w: '#.# #.# ### ### #.#', x: '#.# #.# .#. #.# #.#',
-  y: '#.# #.# .#. .#. .#.', z: '### ..# .#. #.. ###', '0': '### #.# #.# #.# ###', '1': '.#. ##. .#. .#. ###',
-  '2': '##. ..# .#. #.. ###', '3': '##. ..# .#. ..# ##.', '4': '#.# #.# ### ..# ..#', '5': '### #.. ##. ..# ##.',
-  '6': '.## #.. ### #.# ###', '7': '### ..# .#. .#. .#.', '8': '### #.# ### #.# ###', '9': '### #.# ### ..# ##.',
-  '-': '... ... ### ... ...', '_': '... ... ... ... ###', '.': '... ... ... ... .#.', ' ': '... ... ... ... ...',
+  a: '.#. #.# ### #.#', b: '##. ##. #.# ###', c: '### #.. #.. ###', d: '##. #.# #.# ##.',
+  e: '### ##. #.. ###', f: '### ##. #.. #..', g: '### #.. #.# ###', h: '#.# ### #.# #.#',
+  i: '### .#. .#. ###', j: '..# ..# #.# .#.', k: '#.# ##. #.# #.#', l: '#.. #.. #.. ###',
+  m: '### ### #.# #.#', n: '##. #.# #.# #.#', o: '### #.# #.# ###', p: '### #.# ### #..',
+  q: '### #.# ### ..#', r: '##. #.# ##. #.#', s: '.## #.. ..# ##.', t: '### .#. .#. .#.',
+  u: '#.# #.# #.# ###', v: '#.# #.# #.# .#.', w: '#.# #.# ### #.#', x: '#.# .#. .#. #.#',
+  y: '#.# .#. .#. .#.', z: '### ..# #.. ###', '0': '### #.# #.# ###', '1': '##. .#. .#. ###',
+  '2': '##. ..# #.. ###', '3': '##. .## ..# ##.', '4': '#.# ### ..# ..#', '5': '### ##. ..# ##.',
+  '6': '#.. ### #.# ###', '7': '### ..# .#. .#.', '8': '### .#. #.# ###', '9': '### #.# ### ..#',
+  '-': '... ### ... ...', '_': '... ... ... ###', '.': '... ... ... .#.', ' ': '... ... ... ...',
 }
 
 /**
- * `text` in big letters, 3 rows of half blocks, or undefined when a character
- * has no glyph or the letters need more than `width` cells.
+ * `text` in letters two rows tall, of half blocks, or undefined when a
+ * character has no glyph or the letters need more than `width` cells.
  */
-export const bigText = (text: string, width: number): string[] | undefined => {
+export const smallText = (text: string, width: number): string[] | undefined => {
   const glyphs = [...text.toLowerCase()].map(c => FONT[c]?.split(' '))
   if (glyphs.some(g => g === undefined) || glyphs.length * 4 - 1 > width) return undefined
   const on = (g: string[], row: number, col: number) => g[row]?.[col] === '#'
-  return [0, 2, 4].map(row =>
+  return [0, 2].map(row =>
     glyphs
       .map(g =>
         [0, 1, 2]
@@ -271,13 +230,6 @@ export const tokens = (n: number): string => {
   return `${Number.isInteger(m) ? m : m.toFixed(1)}M`
 }
 
-/** How full the context window is, as a color role: 70% warns, 85% alarms. */
-export const contextTone = (percent: number): Tone => {
-  if (percent >= 85) return 'error'
-  if (percent >= 70) return 'warning'
-  return 'success'
-}
-
 // ---------- labels ----------
 
 export type Language = 'en' | 'pt-BR'
@@ -296,6 +248,13 @@ export type Labels = {
   tasksDone: string
   empty: string
   context: string
+  section: string
+  statContext: string
+  statContextShort: string
+  statAgents: string
+  statTasks: string
+  doneShort: string
+  activeShort: string
   opened: (running: number, total: number) => string
 }
 
@@ -314,6 +273,13 @@ const LABELS: Record<Language, Labels> = {
     tasksDone: 'done',
     empty: 'No agents in this session yet.',
     context: 'context',
+    section: 'agents',
+    statContext: 'context',
+    statContextShort: 'ctx',
+    statAgents: 'agents',
+    statTasks: 'tasks',
+    doneShort: 'done',
+    activeShort: 'active',
     opened: (running, total) => `Agents pane open: ${running} running, ${total} in this session.`,
   },
   'pt-BR': {
@@ -330,6 +296,13 @@ const LABELS: Record<Language, Labels> = {
     tasksDone: 'concluídas',
     empty: 'Nenhum subagente nesta sessão ainda.',
     context: 'contexto',
+    section: 'agentes',
+    statContext: 'contexto',
+    statContextShort: 'ctx',
+    statAgents: 'agentes',
+    statTasks: 'tarefas',
+    doneShort: 'prontos',
+    activeShort: 'ativas',
     opened: (running, total) =>
       `Painel de subagentes aberto: ${running} rodando, ${total} nesta sessão.`,
   },
