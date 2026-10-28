@@ -7,6 +7,7 @@ When you run long orchestrations with many subagents in the background, it is ha
 <!-- Record a short GIF of the pane during a real orchestration, save it as docs/demo.gif and add it here: ![agents-pane demo](docs/demo.gif) -->
 
 ```
+agents-pane  ·  context 84k / 200k  ████████░░░░░░░░░░░░ 42%
 Agents  ● 2 running  ✓ 9 done  · 11 total
  ██████████████████████████████████████████████████████████████████████
 Tasks  ○ 3 to start  ◐ 2 in progress  ✓ 9 done  · 14 total
@@ -20,6 +21,7 @@ Tasks  ○ 3 to start  ◐ 2 in progress  ✓ 9 done  · 14 total
 
 ## Features
 
+- **Project and context**: the project folder and how full the session's context window is, with a bar that turns yellow at 70% and red at 85%.
 - **Live list of subagents**: status, type, task description, tool calls and elapsed time for each one. Background agents are marked with `bg`.
 - **Agent summary with a bar**: running, done and failed, in proportion, always on top.
 - **Orchestration summary**: when Claude uses a task list (`TaskCreate` / `TaskUpdate` / `TodoWrite`), the pane also shows how many tasks are still to start, in progress and done.
@@ -83,6 +85,8 @@ The plugin is a Claude Code hooks module. It listens to a few engine events and 
 | `tool.call` on `Agent`                                 | Marks the agent as failed when the call errors                                |
 | `TaskCreate` / `TaskUpdate` / `TaskList` / `TodoWrite` | Keeps the orchestration task list in sync                                     |
 | `$.agent.list()` every second                          | Shows finer live states (waiting, idle) and adopts agents it has not seen yet |
+| `$.session.root()` / `$.session.usage()`               | Fill the top line with the project folder and the context window fill         |
+| `session.measure`                                      | Redraws the pane as soon as the context fill moves                            |
 
 The plugin never changes what Claude does. Every hook passes the event on untouched, and if a hook fails it is skipped.
 

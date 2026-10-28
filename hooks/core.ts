@@ -207,6 +207,27 @@ export const fit = (text: string, width: number): string => {
   return text.padEnd(width)
 }
 
+/** The last segment of a path: the project folder's name. */
+export const projectName = (path: string): string => {
+  const parts = path.split(/[\\/]+/).filter(Boolean)
+  return parts[parts.length - 1] ?? path
+}
+
+/** Token counts the short way: 950, 84k, 1.2M. */
+export const tokens = (n: number): string => {
+  if (n < 1000) return String(Math.round(n))
+  if (n < 1_000_000) return `${Math.round(n / 1000)}k`
+  const m = n / 1_000_000
+  return `${Number.isInteger(m) ? m : m.toFixed(1)}M`
+}
+
+/** How full the context window is, as a color role: 70% warns, 85% alarms. */
+export const contextTone = (percent: number): Tone => {
+  if (percent >= 85) return 'error'
+  if (percent >= 70) return 'warning'
+  return 'success'
+}
+
 // ---------- labels ----------
 
 export type Language = 'en' | 'pt-BR'
@@ -224,6 +245,7 @@ export type Labels = {
   tasksActive: string
   tasksDone: string
   empty: string
+  context: string
   opened: (running: number, total: number) => string
 }
 
@@ -241,6 +263,7 @@ const LABELS: Record<Language, Labels> = {
     tasksActive: 'in progress',
     tasksDone: 'done',
     empty: 'No agents in this session yet.',
+    context: 'context',
     opened: (running, total) => `Agents pane open: ${running} running, ${total} in this session.`,
   },
   'pt-BR': {
@@ -256,6 +279,7 @@ const LABELS: Record<Language, Labels> = {
     tasksActive: 'em andamento',
     tasksDone: 'concluídas',
     empty: 'Nenhum subagente nesta sessão ainda.',
+    context: 'contexto',
     opened: (running, total) =>
       `Painel de subagentes aberto: ${running} rodando, ${total} nesta sessão.`,
   },

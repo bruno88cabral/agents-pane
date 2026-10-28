@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.0
+
+- A top line with the project folder and the context window fill of the session: tokens used, the window size, a bar and the percentage, green below 70%, yellow from 70% and red from 85%.
+
 ## 0.3.1
 
 - The task line also follows `TodoWrite`, so it shows with every model.

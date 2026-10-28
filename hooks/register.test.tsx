@@ -106,7 +106,7 @@ test('TodoWrite from the main loop feeds the task line', async ($, on) => {
     result: { oldTodos: [], newTodos: TODOS },
   }))
 
-  await $.tool.call({ tool: 'TodoWrite', todos: TODOS })
+  await $.tool.call({ tool: 'TodoWrite', todos: [...TODOS] })
 
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   expect(await ui.find({ type: 'Text', text: /1 to start/ })).toBeDefined()
@@ -122,9 +122,38 @@ test('TodoWrite from a subagent leaves the task line alone', async ($, on) => {
     result: { oldTodos: [], newTodos: TODOS },
   }))
 
-  await $.tool.call({ tool: 'TodoWrite', todos: TODOS, agentId: 'a1' })
+  await $.tool.call({ tool: 'TodoWrite', todos: [...TODOS], agentId: 'a1' })
 
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   expect(await ui.find({ type: 'Text', text: /to start/ })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('the top line shows the project folder and the context fill', async ($, on) => {
+  mock.clock(on)
+  on('agent.list', () => ({ value: [] }))
+  on('session.root', () => ({ value: '/home/me/workspace/agents-pane' }))
+  on('session.usage', () => ({
+    value: { startedAt: 0, context: { tokens: 84_000, window: 200_000, percent: 42 }, rateLimits: [] },
+  }))
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /^agents-pane$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /context 84k \/ 200k/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /42%/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('before the first response the context shows only the window', async ($, on) => {
+  mock.clock(on)
+  on('agent.list', () => ({ value: [] }))
+  on('session.root', () => ({ value: '/home/me/workspace/agents-pane' }))
+  on('session.usage', () => ({
+    value: { startedAt: 0, context: { window: 200_000 }, rateLimits: [] },
+  }))
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /context — \/ 200k/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /%/ })).toBeUndefined()
   await ui.unmount()
 })
