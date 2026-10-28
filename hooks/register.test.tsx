@@ -2,7 +2,7 @@
 
 import { expect, mock, test } from 'claude-code/testing'
 
-import { bigText } from './core'
+import { smallText } from './core'
 
 const PANE = {
   plugin: 'agents-pane',
@@ -59,7 +59,7 @@ test('/agents-pane opens the pane and answers with the count', async ($, on) => 
   expect(opened).toBe(1)
 })
 
-test('the header shows both summaries and stays at the scroll offset', async ($, on) => {
+test('the header shows the stats table and stays at the scroll offset', async ($, on) => {
   mock.clock(on, { now: 100_000 })
   on('agent.list', () => ({
     value: [
@@ -72,16 +72,26 @@ test('the header shows both summaries and stays at the scroll offset', async ($,
   const ui = await $.ui.mount({
     ...PANE,
     surface: 'terminal',
-    props: { ...PANE.props, scroll: { offset: 1, bodyRows: 10 } },
+    props: { ...PANE.props, scroll: { offset: 1, bodyRows: 24 } },
   })
-  expect(await ui.find({ type: 'Text', text: /1 running/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /1 done/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /1 to start/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /1 in progress/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /agents\s+1 \/ 2 done/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /● 1 running/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /tasks\s+1 \/ 3 done/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /◐ 1 active/ })).toBeDefined()
   // offset 1: the first agent row is scrolled away, the second shows
   expect(await ui.find({ type: 'Text', text: /Review E1/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /Implement E1/ })).toBeUndefined()
   await ui.unmount()
+
+  // Under 12 rows the pane turns compact: one line of stats, no tasks row.
+  const short = await $.ui.mount({
+    ...PANE,
+    surface: 'terminal',
+    props: { ...PANE.props, scroll: { offset: 0, bodyRows: 10 } },
+  })
+  expect(await short.find({ type: 'Text', text: /agents 1\/2 · ● 1 running/ })).toBeDefined()
+  expect(await short.find({ type: 'Text', text: /tasks/ })).toBeUndefined()
+  await short.unmount()
 })
 
 test('with language pt-BR the pane speaks Portuguese', { options: { language: 'pt-BR' } }, async ($, on) => {
@@ -91,7 +101,7 @@ test('with language pt-BR the pane speaks Portuguese', { options: { language: 'p
 
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   expect(await ui.find({ type: 'Text', text: /1 rodando/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /1 a disparar/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /tarefas\s+1\/3/ })).toBeDefined()
   await ui.unmount()
 })
 
@@ -101,7 +111,7 @@ const TODOS = [
   { content: 'Ship', status: 'completed', activeForm: 'Shipping' },
 ] as const
 
-test('TodoWrite from the main loop feeds the task line', async ($, on) => {
+test('TodoWrite from the main loop feeds the tasks row', async ($, on) => {
   mock.clock(on)
   on('agent.list', () => ({ value: [] }))
   on('tool.call', { tool: 'TodoWrite' }, () => ({
@@ -111,13 +121,12 @@ test('TodoWrite from the main loop feeds the task line', async ($, on) => {
   await $.tool.call({ tool: 'TodoWrite', todos: [...TODOS] })
 
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  expect(await ui.find({ type: 'Text', text: /1 to start/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /1 in progress/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /1 done/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /tasks\s+1 \/ 3 done/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /◐ 1 active/ })).toBeDefined()
   await ui.unmount()
 })
 
-test('TodoWrite from a subagent leaves the task line alone', async ($, on) => {
+test('TodoWrite from a subagent leaves the tasks row alone', async ($, on) => {
   mock.clock(on)
   on('agent.list', () => ({ value: [] }))
   on('tool.call', { tool: 'TodoWrite' }, () => ({
@@ -127,7 +136,7 @@ test('TodoWrite from a subagent leaves the task line alone', async ($, on) => {
   await $.tool.call({ tool: 'TodoWrite', todos: [...TODOS], agentId: 'a1' })
 
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  expect(await ui.find({ type: 'Text', text: /to start/ })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /tasks/ })).toBeUndefined()
   await ui.unmount()
 })
 
@@ -143,11 +152,11 @@ test('the name of the GitHub repo heads the pane in big letters, the context fil
   }))
 
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  for (const row of bigText('agents-pane', 80)!) {
+  for (const row of smallText('agents-pane', 80)!) {
     expect(await ui.find({ type: 'Text', text: row })).toBeDefined()
   }
   expect(await ui.find({ type: 'Text', text: /feature-x/ })).toBeUndefined()
-  expect(await ui.find({ type: 'Text', text: /context 84k \/ 200k/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /context\s+84k \/ 200k/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /42%/ })).toBeDefined()
   await ui.unmount()
 
@@ -176,7 +185,24 @@ test('before the first response the context shows only the window', async ($, on
   }))
 
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  expect(await ui.find({ type: 'Text', text: /context — \/ 200k/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /context\s+— \/ 200k/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /%/ })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('AGENTS_PANE_ASCII=1 draws the pane with plain ASCII', async ($, on) => {
+  mock.clock(on, { now: 100_000 })
+  mock.env(on, { AGENTS_PANE_ASCII: '1' })
+  on('agent.list', () => ({ value: [] }))
+  on('session.repo', () => ({
+    value: { root: '/home/me/workspace/agents-pane', remote: 'git@github.com:me/agents-pane.git', internal: false, name: null },
+  }))
+  on('state.get', (_, e) => ({ value: { value: SEEDED[e.key], version: 1 } }))
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /^ AGENTS-PANE$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /-- agents ---/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^ \.\.  Implement E1/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^ ok  Review E1/ })).toBeDefined()
   await ui.unmount()
 })

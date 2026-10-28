@@ -7,27 +7,36 @@ When you run long orchestrations with many subagents in the background, it is ha
 <!-- Record a short GIF of the pane during a real orchestration, save it as docs/demo.gif and add it here: ![agents-pane demo](docs/demo.gif) -->
 
 ```
-▄▀▄ ▄▀▀ █▀▀ █▀▄ ▀█▀ ▄▀▀     █▀▄ ▄▀▄ █▀▄ █▀▀
-█▀█ █ █ █▀  █ █  █   ▀▄ ▀▀▀ █▀  █▀█ █ █ █▀
-▀ ▀  ▀▀ ▀▀▀ ▀ ▀  ▀  ▀▀      ▀   ▀ ▀ ▀ ▀ ▀▀▀
-context 84k / 200k  ████████░░░░░░░░░░░░ 42%
-Agents  ● 2 running  ✓ 9 done  · 11 total
- ██████████████████████████████████████████████████████████████████████
-Tasks  ○ 3 to start  ◐ 2 in progress  ✓ 9 done  · 14 total
- ░░░░░░░░░░░░░░░███████████████████████████████████████████████████████
-────────────────────────────────────────────────────────────────────────
-✓ general-purpose Implement E1: core model                 42t  12m05 bg
-✓ general-purpose Review E1: core model                     9t   1m18 bg
-● general-purpose Implement E2: task list summary          17t   3m40 bg
-● Explore         Find all places that read state           6t    52s
+ █▀▄ ▄▀▄ █▀▀ ▀█▀ █▀▄ █▀▀ ▄▄▄ █ █ ██▀ ██
+ █▀▄ █▀█ █▄▄ ▄█▄ █ █ █▄█     █▀█ █▄▄ █▄█
+
+ context     583k / 1M  ████████████░░░░░░░░  58%
+ agents     6 / 7 done  █████████████████░░░  86%   ● 1 running
+
+ ── agents ─────────────────────────────────────────────────────
+ MYK-983  spec S0
+   ✓  Implement                   86t   15m26  bg
+   ✓  Review                      30t    4m07  bg
+   ✓  Re-review fix round 1        4t     34s  bg
+
+ MYK-984  S1 classics+harness
+   ✓  Implement                  131t   27m10  bg
+   ✓  Review                      29t    3m29  bg
+
+ MYK-986  Maxwell tunnel
+   ◐  Implement                   41t    2m08  bg           ▂▄▇█
+
+   ✓  Scan the repo for pane h…   12t    1m01      Explore
 ```
 
 ## Features
 
-- **Repo and context**: the name of the GitHub repo in big letters (the same in every worktree), and under it how full the session's context window is, with a bar that turns yellow at 70% and red at 85%.
-- **Live list of subagents**: status, type, task description, tool calls and elapsed time for each one. Background agents are marked with `bg`.
-- **Agent summary with a bar**: running, done and failed, in proportion, always on top.
-- **Orchestration summary**: when Claude uses a task list (`TaskCreate` / `TaskUpdate` / `TodoWrite`), the pane also shows how many tasks are still to start, in progress and done.
+- **Repo and context**: the name of the GitHub repo in big letters, two rows tall (the same in every worktree), and under it how full the session's context window is; the bar turns red at 85%.
+- **Stats table**: context, agents and (when Claude keeps a task list with `TaskCreate` / `TaskUpdate` / `TodoWrite`) tasks, each with its value, a bar of the same width and a percentage, in fixed columns.
+- **Agents grouped by ticket**: when a description names a ticket (`MYK-983`, `ABC-12`), the agents of that ticket share a header and each row keeps only what is its own (`Implement`, `Review`). Agents without a ticket close the list; with no ticket at all the list stays flat.
+- **Live rows**: status, task, tool calls, elapsed time and `bg` for background agents, in columns that never move; only the description gives way. The type shows only when it is not `general-purpose`. A running agent has a sparkline of its tool calls per minute over the last four minutes.
+- **Fits the pane**: under 40 columns the mode and the sparkline go; under 12 rows the pane turns compact (the name in plain text, the stats on one line, a flat list).
+- **ASCII fallback**: `AGENTS_PANE_ASCII=1` draws without block glyphs, for fonts that lack them.
 - **Fixed header**: the summary stays visible while you scroll the list.
 - **Catches up**: agents that started before the plugin loaded (or before a `/reload-plugins`) are picked up too.
 - **English and Portuguese** labels.
@@ -76,6 +85,8 @@ To try it, ask Claude for something that runs agents in parallel, for example: *
 
 Change it in the Claude Code config menu (`/config`), under **agents-pane**.
 
+Set `AGENTS_PANE_ASCII=1` in the environment Claude Code starts in to draw the pane with plain ASCII (`#` and `-` bars, `ok` / `..` / `x` / `.` for the status).
+
 ## How it works
 
 The plugin is a Claude Code hooks module. It listens to a few engine events and keeps a small state per session:
@@ -100,18 +111,20 @@ The plugin never changes what Claude does. Every hook passes the event on untouc
   plugin.json         manifest and the language option
   marketplace.json    makes this repo installable with one line
 hooks/
-  core.ts             harness-agnostic model, reducers and layout math
-  register.tsx        Claude Code adapter: events in, pane out
+  core.ts             harness-agnostic model, reducers, text helpers and labels
+  layout.ts           the pane as lines of colored segments, pure
+  register.tsx        Claude Code adapter: events in, painted lines out
   *.test.ts(x)        tests for both
 types/
   index.d.ts          data model and state contract
 ```
 
-`core.ts` does not know about Claude Code. All counting, bar widths, column widths, time formatting and labels live there. `register.tsx` only turns Claude Code events into calls to the core and draws the result. This split is on purpose: support for other agent harnesses would be a new adapter on top of the same core.
+`core.ts` and `layout.ts` do not know about Claude Code. `layout({ width, height, context, agents, ... })` returns the pane as lines, each a list of segments with a color role (accent, ok, error, dim), and `plain()` turns them into strings, so the whole layout is tested without a terminal. `register.tsx` only turns Claude Code events into calls to the core and paints those lines. This split is on purpose: support for other agent harnesses would be a new adapter on top of the same core.
 
 ## Known limits
 
 - **Agents adopted late** (started before the plugin loaded) show elapsed time from the moment the pane saw them, and their tool calls count from zero. The engine does not expose the real start time.
+- **The sparkline starts over on a reload**: the per-minute counts live in memory, not in the session state.
 - **Organizations with managed settings**: there, `SubagentStop` hooks only run for plugins the organization lists. Agents still show, but may stay as running until the live list reports them as done.
 - Hooks modules are an **early access** API in Claude Code, so a future release may break something. Issues are welcome.
 

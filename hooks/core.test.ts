@@ -7,13 +7,11 @@ import {
   addAgent,
   adoptAgents,
   barCells,
-  columns,
   countToolCall,
   elapsed,
   endAgent,
   fit,
-  bigText,
-  contextTone,
+  smallText,
   labels,
   projectName,
   repoName,
@@ -142,15 +140,6 @@ describe('layout', () => {
     expect(barCells([0, 0], 20)).toEqual([0, 0])
   })
 
-  test('columns always add up to the width on a normal pane', async () => {
-    const c = columns(100)
-    expect(2 + c.type + 1 + c.description + 1 + c.tools + c.time + c.background).toBe(100)
-  })
-
-  test('the type column fits general-purpose without cutting it', async () => {
-    expect(fit('general-purpose', columns(80).type)).toBe('general-purpose')
-  })
-
   test('fit cuts with an ellipsis or pads to the width', async () => {
     expect(fit('general-purpose', 10)).toBe('general-p…')
     expect(fit('Plan', 6)).toBe('Plan  ')
@@ -159,7 +148,7 @@ describe('layout', () => {
   test('elapsed reads as seconds, minutes or hours', async () => {
     expect(elapsed(0, 42_000)).toBe('42s')
     expect(elapsed(0, 125_000)).toBe('2m05')
-    expect(elapsed(0, 3_780_000)).toBe('1h03')
+    expect(elapsed(0, 3_780_000)).toBe('1h03m')
   })
 })
 
@@ -186,12 +175,6 @@ describe('project and context', () => {
     expect(tokens(1_250_000)).toBe('1.3M')
   })
 
-  test('contextTone warns at 70% and alarms at 85%', async () => {
-    expect(contextTone(42)).toBe('success')
-    expect(contextTone(70)).toBe('warning')
-    expect(contextTone(84)).toBe('warning')
-    expect(contextTone(85)).toBe('error')
-  })
   test('repoName reads the name from any remote URL', async () => {
     expect(repoName('git@github.com:me/agents-pane.git')).toBe('agents-pane')
     expect(repoName('https://github.com/me/agents-pane')).toBe('agents-pane')
@@ -200,13 +183,13 @@ describe('project and context', () => {
     expect(repoName('git@github.com:')).toBeUndefined()
   })
 
-  test('bigText draws three rows, four cells a letter', async () => {
-    expect(bigText('ab', 80)).toEqual(['▄▀▄ █▀▄', '█▀█ █▀▄', '▀ ▀ ▀▀'])
-    expect(bigText('agents-pane', 43)?.length).toBe(3)
+  test('smallText draws two rows, four cells a letter', async () => {
+    expect(smallText('ab', 80)).toEqual(['▄▀▄ ██', '█▀█ █▄█'])
+    expect(smallText('agents-pane', 43)?.length).toBe(2)
   })
 
-  test('bigText gives up when it does not fit or a letter has no glyph', async () => {
-    expect(bigText('agents-pane', 42)).toBeUndefined()
-    expect(bigText('café', 80)).toBeUndefined()
+  test('smallText gives up when it does not fit or a letter has no glyph', async () => {
+    expect(smallText('agents-pane', 42)).toBeUndefined()
+    expect(smallText('café', 80)).toBeUndefined()
   })
 })

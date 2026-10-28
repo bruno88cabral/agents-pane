@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.0
+
+- New layout. The name in letters two rows tall, then a stats table (context, agents, tasks) with fixed columns and bars of the same width, then a `── agents ──` separator.
+- Agents grouped by the ticket their description names, each row keeping only what is its own.
+- Rows in fixed columns: status, task, tool calls, time, `bg`; the type only when it is not `general-purpose`; a sparkline of tool calls per minute on running agents.
+- Four colors at most: the accent (name and running), green, red and dim. The context bar no longer turns yellow.
+- Compact mode under 12 rows, no mode or sparkline under 40 columns, and `AGENTS_PANE_ASCII=1` for fonts without block glyphs.
+- The layout is a pure function (`hooks/layout.ts`) with snapshot tests.
+
 ## 0.5.0
 
 - The pane is headed by the name of the GitHub repo, read from the `origin` remote, so it stays the same in every worktree. Without a remote it falls back to the folder.

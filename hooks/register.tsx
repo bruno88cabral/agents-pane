@@ -1,8 +1,9 @@
 // Claude Code adapter for agents-pane.
 //
 // This file turns Claude Code events into calls to the core reducers and
-// draws the pane with Claude Code's UI elements. All counting, layout math
-// and labels live in ./core.ts, which knows nothing about Claude Code.
+// paints the lines ./layout.ts lays out with Claude Code's UI elements. The
+// reducers and labels live in ./core.ts and the layout in ./layout.ts; neither
+// knows anything about Claude Code.
 
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
@@ -10,40 +11,31 @@ import type { EngineInterface, Register } from 'claude-code'
 import {
   addAgent,
   adoptAgents,
-  barCells,
-  bigText,
-  columns,
-  contextTone,
   countToolCall,
-  elapsed,
   endAgent,
-  fit,
-  glyph,
   isLive,
   labels,
   projectName,
   repoName,
   summarize,
   tasksFromTodos,
-  tokens,
-  tone,
   updateTask,
   upsertTask,
 } from './core'
-import type { AgentRow, LiveStatus, TaskRow, TaskStatus, Tone } from './core'
+import type { AgentRow, LiveStatus, TaskRow, TaskStatus } from './core'
+import { layout, mark, rates } from './layout'
+import type { Line, Marks, Tone } from './layout'
 
 const PANE = 'agents-pane'
 
 const agents = atom({ plugin: 'agents-pane', key: 'agents' } as const, [])
 const tasks = atom({ plugin: 'agents-pane', key: 'tasks' } as const, [])
 
-// Core tones to Claude Code theme keys.
-const COLOR: Record<Tone, 'claude' | 'success' | 'error' | 'warning' | 'inactive'> = {
-  active: 'claude',
-  success: 'success',
+// Layout tones to Claude Code theme keys; `dim` is the terminal's dim text.
+const COLOR: Record<Exclude<Tone, 'dim'>, 'claude' | 'success' | 'error'> = {
+  accent: 'claude',
+  ok: 'success',
   error: 'error',
-  warning: 'warning',
-  muted: 'inactive',
 }
 
 const adopt = async ($: EngineInterface): Promise<void> => {
@@ -54,6 +46,12 @@ const adopt = async ($: EngineInterface): Promise<void> => {
 export const register: Register = (on, options) => {
   const t = labels(options.language)
   let ticking = false
+  // AGENTS_PANE_ASCII=1 draws with plain ASCII, for fonts without block
+  // glyphs. Read on the first drawing, then kept.
+  let ascii: boolean | undefined
+  // Tool-call counts at each minute mark, per running agent, for the
+  // sparkline. Kept in memory only: a reload starts them over.
+  const marks = new Map<string, Marks>()
 
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'agents-pane', description: t.commandDescription })
@@ -205,31 +203,17 @@ export const register: Register = (on, options) => {
       return { ...a, status }
     })
 
+    ascii ??= (await $.env.get('AGENTS_PANE_ASCII').catch(() => undefined)) === '1'
+
     const s = summarize(rows, taskList)
-    const width = Math.max(30, e.props.bodyColumns ?? e.viewport?.columns ?? 80)
+    const width = Math.max(20, e.props.bodyColumns ?? e.viewport?.columns ?? 80)
+    const height = e.props.scroll?.bodyRows ?? 24
     const offset = Math.max(0, e.props.scroll?.offset ?? 0)
-    const barWidth = Math.max(10, width - 2)
-    const col = columns(width)
 
-    const [aRun = 0, aDone = 0, aFail = 0] = barCells(
-      [s.agents.running, s.agents.done, s.agents.failed],
-      barWidth,
-    )
-    const [tPend = 0, tAct = 0, tDone = 0] = barCells(
-      [s.tasks.pending, s.tasks.active, s.tasks.done],
-      barWidth,
-    )
-
-    // tokens and percent stay unknown until the first response of the live
-    // window (a fresh session, or one just compacted).
-    const ctx = usage?.context
-    const ctxBarWidth = 20
-    const ctxUsed =
-      ctx?.percent !== undefined
-        ? Math.min(ctxBarWidth, Math.max(ctx.percent > 0 ? 1 : 0, Math.round((ctx.percent / 100) * ctxBarWidth)))
-        : 0
-    const ctxFree = ctxBarWidth - ctxUsed
-    const ctxColor = COLOR[contextTone(ctx?.percent ?? 0)]
+    for (const a of rows) {
+      if (isLive(a.status)) marks.set(a.id, mark(marks.get(a.id), now, a.toolCalls))
+      else marks.delete(a.id)
+    }
 
     // The repo's name stays the same in every worktree; the folder's does not.
     const name =
@@ -237,94 +221,53 @@ export const register: Register = (on, options) => {
       (repo && projectName(repo.root)) ||
       (root && projectName(root)) ||
       undefined
-    // The terminal has one text size, so there the name is drawn in big letters.
-    const big = name && e.surface === 'terminal' ? bigText(name, width) : undefined
+
+    const { header, body } = layout({
+      width,
+      height,
+      terminal: e.surface === 'terminal',
+      ascii,
+      now,
+      name,
+      // tokens and percent stay unknown until the first response of the live
+      // window (a fresh session, or one just compacted).
+      context: usage?.context,
+      agents: rows.map(a => {
+        const m = marks.get(a.id)
+        return m ? { ...a, rates: rates(m, a.toolCalls) } : a
+      }),
+      tasks: s.tasks,
+      labels: t,
+    })
+
+    const paint = (line: Line, key: string) => (
+      <Text key={key} wrap="truncate-end">
+        {line.map((seg, i) =>
+          seg.title ? (
+            <Text key={String(i)} bold size="title" color={COLOR.accent}>
+              {seg.text}
+            </Text>
+          ) : (
+            <Text
+              key={String(i)}
+              bold={seg.bold}
+              dimColor={seg.tone === 'dim'}
+              color={seg.tone && seg.tone !== 'dim' ? COLOR[seg.tone] : undefined}
+            >
+              {seg.text || ' '}
+            </Text>
+          ),
+        )}
+      </Text>
+    )
 
     // The header is drawn at the scroll offset, so it stays on the first
     // visible row while the list scrolls under it.
-    const header = (
-      <Box flexDirection="column">
-        {big?.map((row, i) => (
-          <Text key={`big-${i}`} bold color={COLOR.active} wrap="truncate-end">
-            {row}
-          </Text>
-        ))}
-        {name && !big && (
-          <Text bold size="title" color={COLOR.active} wrap="truncate-end">
-            {name}
-          </Text>
-        )}
-        {ctx && (
-          <Text wrap="truncate-end">
-            <Text dimColor>{t.context} </Text>
-            <Text color={ctx.tokens !== undefined ? ctxColor : undefined} dimColor={ctx.tokens === undefined}>
-              {ctx.tokens !== undefined ? tokens(ctx.tokens) : '—'}
-            </Text>
-            <Text dimColor> / {tokens(ctx.window)}  </Text>
-            <Text color={ctxColor}>{'█'.repeat(ctxUsed)}</Text>
-            <Text dimColor>{'░'.repeat(ctxFree)}</Text>
-            {ctx.percent !== undefined && <Text color={ctxColor}> {ctx.percent}%</Text>}
-          </Text>
-        )}
-        <Text bold wrap="truncate-end">
-          {t.agents}  <Text color={COLOR.active}>● {s.agents.running} {t.running}</Text>
-          {'  '}
-          <Text color={COLOR.success}>✓ {s.agents.done} {t.done}</Text>
-          {s.agents.failed > 0 && (
-            <Text color={COLOR.error}>  ✗ {s.agents.failed} {t.failed}</Text>
-          )}
-          <Text dimColor>  · {s.agents.total} {t.total}</Text>
-        </Text>
-        <Text wrap="truncate-end">
-          {' '}
-          <Text color={COLOR.active}>{'█'.repeat(aRun)}</Text>
-          <Text color={COLOR.success}>{'█'.repeat(aDone)}</Text>
-          <Text color={COLOR.error}>{'█'.repeat(aFail)}</Text>
-          {s.agents.total === 0 && <Text dimColor>{'░'.repeat(barWidth)}</Text>}
-        </Text>
-        {s.tasks.total > 0 && (
-          <Text bold wrap="truncate-end">
-            {t.tasks}  <Text dimColor>○ {s.tasks.pending} {t.tasksPending}</Text>
-            {'  '}
-            <Text color={COLOR.warning}>◐ {s.tasks.active} {t.tasksActive}</Text>
-            {'  '}
-            <Text color={COLOR.success}>✓ {s.tasks.done} {t.tasksDone}</Text>
-            <Text dimColor>  · {s.tasks.total} {t.total}</Text>
-          </Text>
-        )}
-        {s.tasks.total > 0 && (
-          <Text wrap="truncate-end">
-            {' '}
-            <Text dimColor>{'░'.repeat(tPend)}</Text>
-            <Text color={COLOR.warning}>{'█'.repeat(tAct)}</Text>
-            <Text color={COLOR.success}>{'█'.repeat(tDone)}</Text>
-          </Text>
-        )}
-        <Text dimColor wrap="truncate-end">{'─'.repeat(width)}</Text>
-      </Box>
-    )
-
     return (
       <Box flexDirection="column">
         {offset > 0 && <Box height={offset} />}
-        {header}
-        {rows.length === 0 && <Text dimColor>{t.empty}</Text>}
-        {rows.slice(offset).map(a => {
-          const running = isLive(a.status)
-          const time = elapsed(a.startedAt, running ? now : (a.endedAt ?? now))
-          return (
-            <Box key={a.id} flexDirection="row">
-              <Text wrap="truncate-end">
-                <Text color={COLOR[tone(a.status)]}>{glyph(a.status)} </Text>
-                <Text bold>{fit(a.type, col.type)}</Text>
-                <Text dimColor={!running}> {fit(a.description, col.description)}</Text>
-                <Text dimColor> {`${a.toolCalls}t`.padStart(col.tools)}</Text>
-                <Text dimColor>{time.padStart(col.time)}</Text>
-                <Text dimColor>{a.background ? ' bg' : '   '}</Text>
-              </Text>
-            </Box>
-          )
-        })}
+        <Box flexDirection="column">{header.map((line, i) => paint(line, `h${i}`))}</Box>
+        {body.slice(offset).map((line, i) => paint(line, `b${i + offset}`))}
       </Box>
     )
   })
