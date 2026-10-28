@@ -11,6 +11,7 @@ import {
   addAgent,
   adoptAgents,
   barCells,
+  bigText,
   columns,
   contextTone,
   countToolCall,
@@ -21,6 +22,7 @@ import {
   isLive,
   labels,
   projectName,
+  repoName,
   summarize,
   tasksFromTodos,
   tokens,
@@ -184,12 +186,13 @@ export const register: Register = (on, options) => {
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Text } = $.ui.resolve(e)
-    const [history, taskList, live, now, root, usage] = await Promise.all([
+    const [history, taskList, live, now, root, repo, usage] = await Promise.all([
       read($, agents),
       read($, tasks),
       $.agent.list(),
       $.clock.now(),
       $.session.root().catch(() => undefined),
+      $.session.repo().catch(() => undefined),
       $.session.usage().catch(() => undefined),
     ])
 
@@ -228,26 +231,39 @@ export const register: Register = (on, options) => {
     const ctxFree = ctxBarWidth - ctxUsed
     const ctxColor = COLOR[contextTone(ctx?.percent ?? 0)]
 
+    // The repo's name stays the same in every worktree; the folder's does not.
+    const name =
+      (repo?.remote && repoName(repo.remote)) ||
+      (repo && projectName(repo.root)) ||
+      (root && projectName(root)) ||
+      undefined
+    // The terminal has one text size, so there the name is drawn in big letters.
+    const big = name && e.surface === 'terminal' ? bigText(name, width) : undefined
+
     // The header is drawn at the scroll offset, so it stays on the first
     // visible row while the list scrolls under it.
     const header = (
       <Box flexDirection="column">
-        {(root || ctx) && (
+        {big?.map((row, i) => (
+          <Text key={`big-${i}`} bold color={COLOR.active} wrap="truncate-end">
+            {row}
+          </Text>
+        ))}
+        {name && !big && (
+          <Text bold size="title" color={COLOR.active} wrap="truncate-end">
+            {name}
+          </Text>
+        )}
+        {ctx && (
           <Text wrap="truncate-end">
-            {root && <Text bold>{projectName(root)}</Text>}
-            {root && ctx && <Text dimColor>  ·  </Text>}
-            {ctx && (
-              <Text>
-                <Text dimColor>{t.context} </Text>
-                <Text color={ctx.tokens !== undefined ? ctxColor : undefined} dimColor={ctx.tokens === undefined}>
-                  {ctx.tokens !== undefined ? tokens(ctx.tokens) : '—'}
-                </Text>
-                <Text dimColor> / {tokens(ctx.window)}  </Text>
-                <Text color={ctxColor}>{'█'.repeat(ctxUsed)}</Text>
-                <Text dimColor>{'░'.repeat(ctxFree)}</Text>
-                {ctx.percent !== undefined && <Text color={ctxColor}> {ctx.percent}%</Text>}
-              </Text>
-            )}
+            <Text dimColor>{t.context} </Text>
+            <Text color={ctx.tokens !== undefined ? ctxColor : undefined} dimColor={ctx.tokens === undefined}>
+              {ctx.tokens !== undefined ? tokens(ctx.tokens) : '—'}
+            </Text>
+            <Text dimColor> / {tokens(ctx.window)}  </Text>
+            <Text color={ctxColor}>{'█'.repeat(ctxUsed)}</Text>
+            <Text dimColor>{'░'.repeat(ctxFree)}</Text>
+            {ctx.percent !== undefined && <Text color={ctxColor}> {ctx.percent}%</Text>}
           </Text>
         )}
         <Text bold wrap="truncate-end">

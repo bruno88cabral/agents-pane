@@ -213,6 +213,56 @@ export const projectName = (path: string): string => {
   return parts[parts.length - 1] ?? path
 }
 
+/**
+ * The repository's name from its remote URL, the same in every worktree:
+ * `git@github.com:me/agents-pane.git` and `https://github.com/me/agents-pane`
+ * both give `agents-pane`. Undefined when the URL has no path.
+ */
+export const repoName = (remote: string): string | undefined => {
+  const path = remote.trim().replace(/\/+$/, '').replace(/\.git$/, '')
+  const name = path.split(/[/:]/).pop()
+  return name && !name.includes('@') ? name : undefined
+}
+
+// A 3x5 pixel font, five rows of three, drawn with half blocks so each
+// letter takes three rows and four columns.
+const FONT: Record<string, string> = {
+  a: '.#. #.# ### #.# #.#', b: '##. #.# ##. #.# ##.', c: '.## #.. #.. #.. .##', d: '##. #.# #.# #.# ##.',
+  e: '### #.. ##. #.. ###', f: '### #.. ##. #.. #..', g: '.## #.. #.# #.# .##', h: '#.# #.# ### #.# #.#',
+  i: '### .#. .#. .#. ###', j: '..# ..# ..# #.# .#.', k: '#.# #.# ##. #.# #.#', l: '#.. #.. #.. #.. ###',
+  m: '#.# ### ### #.# #.#', n: '##. #.# #.# #.# #.#', o: '.#. #.# #.# #.# .#.', p: '##. #.# ##. #.. #..',
+  q: '.#. #.# #.# ##. .##', r: '##. #.# ##. #.# #.#', s: '.## #.. .#. ..# ##.', t: '### .#. .#. .#. .#.',
+  u: '#.# #.# #.# #.# ###', v: '#.# #.# #.# #.# .#.', w: '#.# #.# ### ### #.#', x: '#.# #.# .#. #.# #.#',
+  y: '#.# #.# .#. .#. .#.', z: '### ..# .#. #.. ###', '0': '### #.# #.# #.# ###', '1': '.#. ##. .#. .#. ###',
+  '2': '##. ..# .#. #.. ###', '3': '##. ..# .#. ..# ##.', '4': '#.# #.# ### ..# ..#', '5': '### #.. ##. ..# ##.',
+  '6': '.## #.. ### #.# ###', '7': '### ..# .#. .#. .#.', '8': '### #.# ### #.# ###', '9': '### #.# ### ..# ##.',
+  '-': '... ... ### ... ...', '_': '... ... ... ... ###', '.': '... ... ... ... .#.', ' ': '... ... ... ... ...',
+}
+
+/**
+ * `text` in big letters, 3 rows of half blocks, or undefined when a character
+ * has no glyph or the letters need more than `width` cells.
+ */
+export const bigText = (text: string, width: number): string[] | undefined => {
+  const glyphs = [...text.toLowerCase()].map(c => FONT[c]?.split(' '))
+  if (glyphs.some(g => g === undefined) || glyphs.length * 4 - 1 > width) return undefined
+  const on = (g: string[], row: number, col: number) => g[row]?.[col] === '#'
+  return [0, 2, 4].map(row =>
+    glyphs
+      .map(g =>
+        [0, 1, 2]
+          .map(col => {
+            const top = on(g!, row, col)
+            const bottom = on(g!, row + 1, col)
+            return top && bottom ? '█' : top ? '▀' : bottom ? '▄' : ' '
+          })
+          .join(''),
+      )
+      .join(' ')
+      .trimEnd(),
+  )
+}
+
 /** Token counts the short way: 950, 84k, 1.2M. */
 export const tokens = (n: number): string => {
   if (n < 1000) return String(Math.round(n))
