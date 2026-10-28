@@ -59,11 +59,13 @@ const SCENARIOS: Record<string, LayoutInput> = {
 describe('scenarios', () => {
   test("normal, grouped by ticket", async () => {
     expect(plain(layout(SCENARIOS["normal, grouped by ticket"]!))).toEqual([
-      ' █▀▄ ▄▀▄ █▀▀ ▀█▀ █▀▄ █▀▀ ▄▄▄ █ █ ██▀ ██',
-      ' █▀▄ █▀█ █▄▄ ▄█▄ █ █ █▄█     █▀█ █▄▄ █▄█',
+      ' █▀▄ ▄▀▄ ▄▀▀ ▀█▀ █▀▄ ▄▀▀     █ █ █▀▀ █▀▄',
+      ' █▀▄ █▀█ █    █  █ █ █ █ ▀▀▀ ███ █▀  █▀▄',
+      ' ▀ ▀ ▀ ▀  ▀▀ ▀▀▀ ▀ ▀  ▀▀     ▀ ▀ ▀▀▀ ▀▀',
       '',
       ' context     583k / 1M  ████████████░░░░░░░░  58%',
-      ' agents     5 / 6 done  █████████████████░░░  83%   ● 1 running',
+      '',
+      ' agents     5 / 6 done  ████████████████████  83%   ● 1 running',
       '',
       ' ── agents ─────────────────────────────────────────────────────',
       ' MYK-983  spec S0',
@@ -82,11 +84,13 @@ describe('scenarios', () => {
 
   test("some without a ticket", async () => {
     expect(plain(layout(SCENARIOS["some without a ticket"]!))).toEqual([
-      ' █▀▄ ▄▀▄ █▀▀ ▀█▀ █▀▄ █▀▀ ▄▄▄ █ █ ██▀ ██',
-      ' █▀▄ █▀█ █▄▄ ▄█▄ █ █ █▄█     █▀█ █▄▄ █▄█',
+      ' █▀▄ ▄▀▄ ▄▀▀ ▀█▀ █▀▄ ▄▀▀     █ █ █▀▀ █▀▄',
+      ' █▀▄ █▀█ █    █  █ █ █ █ ▀▀▀ ███ █▀  █▀▄',
+      ' ▀ ▀ ▀ ▀  ▀▀ ▀▀▀ ▀ ▀  ▀▀     ▀ ▀ ▀▀▀ ▀▀',
       '',
       ' context     583k / 1M  ████████████░░░░░░░░  58%',
-      ' agents     6 / 7 done  █████████████████░░░  86%   ● 1 running',
+      '',
+      ' agents     6 / 7 done  ████████████████████  86%   ● 1 running',
       '',
       ' ── agents ─────────────────────────────────────────────────────',
       ' MYK-983  spec S0',
@@ -107,12 +111,14 @@ describe('scenarios', () => {
 
   test("flat list, no ticket", async () => {
     expect(plain(layout(SCENARIOS["flat list, no ticket"]!))).toEqual([
-      ' █▀▄ ▄▀▄ █▀▀ ▀█▀ █▀▄ █▀▀ ▄▄▄ █ █ ██▀ ██',
-      ' █▀▄ █▀█ █▄▄ ▄█▄ █ █ █▄█     █▀█ █▄▄ █▄█',
+      ' █▀▄ ▄▀▄ ▄▀▀ ▀█▀ █▀▄ ▄▀▀     █ █ █▀▀ █▀▄',
+      ' █▀▄ █▀█ █    █  █ █ █ █ ▀▀▀ ███ █▀  █▀▄',
+      ' ▀ ▀ ▀ ▀  ▀▀ ▀▀▀ ▀ ▀  ▀▀     ▀ ▀ ▀▀▀ ▀▀',
       '',
       ' context     583k / 1M  ████████████░░░░░░░░  58%',
-      ' agents     2 / 3 done  ██████████████░░░░░░  67%   ● 1 running',
-      ' tasks      3 / 5 done  ████████████░░░░░░░░  60%   ◐ 1 active',
+      '',
+      ' agents     2 / 3 done  ████████████████████  67%   ● 1 running',
+      ' tasks      3 / 5 done  ████████████████░░░░  60%   ◐ 1 active',
       '',
       ' ── agents ─────────────────────────────────────────────────────',
       ' ✓  Implement E1                           12t    5m00  bg',
@@ -136,11 +142,13 @@ describe('scenarios', () => {
 
   test("width 40", async () => {
     expect(plain(layout(SCENARIOS["width 40"]!))).toEqual([
-      ' █▀▄ ▄▀▄ █▀▀ ▀█▀ █▀▄ █▀▀ ▄▄▄ █ █ ██▀ ██',
-      ' █▀▄ █▀█ █▄▄ ▄█▄ █ █ █▄█     █▀█ █▄▄ █▄█',
+      ' █▀▄ ▄▀▄ ▄▀▀ ▀█▀ █▀▄ ▄▀▀     █ █ █▀▀ █▀▄',
+      ' █▀▄ █▀█ █    █  █ █ █ █ ▀▀▀ ███ █▀  █▀▄',
+      ' ▀ ▀ ▀ ▀  ▀▀ ▀▀▀ ▀ ▀  ▀▀     ▀ ▀ ▀▀▀ ▀▀',
       '',
       ' context     583k / 1M  ██████░░░░░  58%',
-      ' agents     5 / 6 done  █████████░░  83%',
+      '',
+      ' agents     5 / 6 done  ███████████  83%',
       '',
       ' ── agents ─────────────────────────────',
       ' MYK-983  spec S0',
@@ -162,7 +170,8 @@ describe('scenarios', () => {
       ' RACING-WEB',
       '',
       ' context     583k / 1M  ############--------  58%',
-      ' agents     5 / 6 done  #################---  83%   * 1 running',
+      '',
+      ' agents     5 / 6 done  ####################  83%   * 1 running',
       '',
       ' -- agents -----------------------------------------------------',
       ' MYK-983  spec S0',
@@ -181,10 +190,12 @@ describe('scenarios', () => {
 
   test("long description cut with an ellipsis", async () => {
     expect(plain(layout(SCENARIOS["long description cut with an ellipsis"]!))).toEqual([
-      ' █▀▄ ▄▀▄ █▀▀ ▀█▀ █▀▄ █▀▀ ▄▄▄ █ █ ██▀ ██',
-      ' █▀▄ █▀█ █▄▄ ▄█▄ █ █ █▄█     █▀█ █▄▄ █▄█',
+      ' █▀▄ ▄▀▄ ▄▀▀ ▀█▀ █▀▄ ▄▀▀     █ █ █▀▀ █▀▄',
+      ' █▀▄ █▀█ █    █  █ █ █ █ ▀▀▀ ███ █▀  █▀▄',
+      ' ▀ ▀ ▀ ▀  ▀▀ ▀▀▀ ▀ ▀  ▀▀     ▀ ▀ ▀▀▀ ▀▀',
       '',
       ' context     583k / 1M  ████████████░░░░░░░░  58%',
+      '',
       ' agents     1 / 1 done  ████████████████████ 100%   ● 0 running',
       '',
       ' ── agents ─────────────────────────────────────────────────────',
@@ -205,7 +216,7 @@ describe('rules', () => {
 
   test('from 12 rows the pane is no longer compact', async () => {
     expect(plain(layout({ ...base, height: 11 }))[0]).toBe(' RACING-WEB')
-    expect(plain(layout({ ...base, height: 12 }))[0]).toBe(' █▀▄ ▄▀▄ █▀▀ ▀█▀ █▀▄ █▀▀ ▄▄▄ █ █ ██▀ ██')
+    expect(plain(layout({ ...base, height: 12 }))[0]).toBe(' █▀▄ ▄▀▄ ▄▀▀ ▀█▀ █▀▄ ▄▀▀     █ █ █▀▀ █▀▄')
   })
 
   test('off the terminal the name is a title, not big letters', async () => {
@@ -223,13 +234,32 @@ describe('rules', () => {
     expect(lines).toContain(' agents     0 / 0 done  ░░░░░░░░░░░░░░░░░░░░        ● 0 running')
   })
 
-  test('context at 85% turns red, before that the bar keeps the default color', async () => {
+  test('the bars are colored: agents done, running and failed; tasks done and active', async () => {
+    const tonesOf = (input: LayoutInput, label: string) =>
+      layout(input).header.find(l => l.some(s => s.text.includes(label)))!
+        .filter(s => /█/.test(s.text)).map(s => s.tone)
+    const flat = SCENARIOS['flat list, no ticket']!
+    expect(tonesOf(flat, 'agents ')).toEqual(['ok', 'error', 'accent'])
+    expect(tonesOf(flat, 'tasks')).toEqual(['ok', 'warn'])
+  })
+
+  test('a blank line sits between the context and the agents', async () => {
+    const lines = plain(layout(base))
+    const ctx = lines.findIndex(l => l.includes('context'))
+    expect(lines[ctx + 1]).toBe('')
+    expect(lines[ctx + 2]).toContain('agents')
+  })
+
+  test('context is green below 70%, yellow from 70% and red from 85%', async () => {
     const row = (percent: number) =>
       layout({ ...base, context: { tokens: 1, window: 1, percent } }).header.find(l =>
         l.some(s => s.text.includes('context')),
       )!
-    expect(row(84).some(s => s.tone === 'error')).toBe(false)
-    expect(row(85).filter(s => s.tone === 'error').map(s => s.text)).toEqual(['█████████████████', '  85%'])
+    const tones = (percent: number) => [...new Set(row(percent).map(s => s.tone).filter(t => t && t !== 'dim'))]
+    expect(tones(69)).toEqual(['ok'])
+    expect(tones(70)).toEqual(['warn'])
+    expect(tones(84)).toEqual(['warn'])
+    expect(row(85).filter(s => s.tone === 'error').map(s => s.text)).toEqual(['       1 / 1', '█████████████████', '  85%'])
   })
 
   test('statuses: running in the accent, done ok, failed error, pending dim', async () => {

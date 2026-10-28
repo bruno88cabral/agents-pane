@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.0
+
+- The name is back to the big letters of 0.5.0, three rows tall.
+- The bars have their colors back: context green below 70%, yellow from 70% and red from 85%; agents green for done, the accent for running and red for failed; tasks green for done and yellow for active.
+- A blank line between the context and the agents rows.
+
 ## 0.6.0
 
 - New layout. The name in letters two rows tall, then a stats table (context, agents, tasks) with fixed columns and bars of the same width, then a `── agents ──` separator.

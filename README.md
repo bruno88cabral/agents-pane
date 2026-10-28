@@ -7,11 +7,13 @@ When you run long orchestrations with many subagents in the background, it is ha
 <!-- Record a short GIF of the pane during a real orchestration, save it as docs/demo.gif and add it here: ![agents-pane demo](docs/demo.gif) -->
 
 ```
- █▀▄ ▄▀▄ █▀▀ ▀█▀ █▀▄ █▀▀ ▄▄▄ █ █ ██▀ ██
- █▀▄ █▀█ █▄▄ ▄█▄ █ █ █▄█     █▀█ █▄▄ █▄█
+ █▀▄ ▄▀▄ ▄▀▀ ▀█▀ █▀▄ ▄▀▀     █ █ █▀▀ █▀▄
+ █▀▄ █▀█ █    █  █ █ █ █ ▀▀▀ ███ █▀  █▀▄
+ ▀ ▀ ▀ ▀  ▀▀ ▀▀▀ ▀ ▀  ▀▀     ▀ ▀ ▀▀▀ ▀▀
 
  context     583k / 1M  ████████████░░░░░░░░  58%
- agents     6 / 7 done  █████████████████░░░  86%   ● 1 running
+
+ agents     6 / 7 done  ████████████████████  86%   ● 1 running
 
  ── agents ─────────────────────────────────────────────────────
  MYK-983  spec S0
@@ -31,7 +33,7 @@ When you run long orchestrations with many subagents in the background, it is ha
 
 ## Features
 
-- **Repo and context**: the name of the GitHub repo in big letters, two rows tall (the same in every worktree), and under it how full the session's context window is; the bar turns red at 85%.
+- **Repo and context**: the name of the GitHub repo in big letters, three rows tall (the same in every worktree), and under it how full the session's context window is; the bar is green, turns yellow at 70% and red at 85%. The agents bar shows done in green, running in the accent and failed in red.
 - **Stats table**: context, agents and (when Claude keeps a task list with `TaskCreate` / `TaskUpdate` / `TodoWrite`) tasks, each with its value, a bar of the same width and a percentage, in fixed columns.
 - **Agents grouped by ticket**: when a description names a ticket (`MYK-983`, `ABC-12`), the agents of that ticket share a header and each row keeps only what is its own (`Implement`, `Review`). Agents without a ticket close the list; with no ticket at all the list stays flat.
 - **Live rows**: status, task, tool calls, elapsed time and `bg` for background agents, in columns that never move; only the description gives way. The type shows only when it is not `general-purpose`. A running agent has a sparkline of its tool calls per minute over the last four minutes.
@@ -119,7 +121,7 @@ types/
   index.d.ts          data model and state contract
 ```
 
-`core.ts` and `layout.ts` do not know about Claude Code. `layout({ width, height, context, agents, ... })` returns the pane as lines, each a list of segments with a color role (accent, ok, error, dim), and `plain()` turns them into strings, so the whole layout is tested without a terminal. `register.tsx` only turns Claude Code events into calls to the core and paints those lines. This split is on purpose: support for other agent harnesses would be a new adapter on top of the same core.
+`core.ts` and `layout.ts` do not know about Claude Code. `layout({ width, height, context, agents, ... })` returns the pane as lines, each a list of segments with a color role (accent, ok, warn, error, dim), and `plain()` turns them into strings, so the whole layout is tested without a terminal. `register.tsx` only turns Claude Code events into calls to the core and paints those lines. This split is on purpose: support for other agent harnesses would be a new adapter on top of the same core.
 
 ## Known limits
 
