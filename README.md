@@ -4,7 +4,9 @@ A live pane for Claude Code that shows every subagent working in your session.
 
 When you run long orchestrations with many subagents in the background, it is hard to know what is going on. `/tasks` gives you a raw list. **agents-pane** gives you a dashboard: who is running, who is done, how long each one took, and how far the orchestration plan has come.
 
-<!-- Record a short GIF of the pane during a real orchestration, save it as docs/demo.gif and add it here: ![agents-pane demo](docs/demo.gif) -->
+![agents-pane open beside a Claude Code session: the repo name in big letters, the branch, context, usage limits, session and agents](docs/screenshot.png)
+
+The same layout in text, during an orchestration grouped by ticket:
 
 ```
  █▀▄ ▄▀▄ ▄▀▀ ▀█▀ █▀▄ ▄▀▀     █ █ █▀▀ █▀▄
