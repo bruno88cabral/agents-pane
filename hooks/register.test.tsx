@@ -206,3 +206,35 @@ test('AGENTS_PANE_ASCII=1 draws the pane with plain ASCII', async ($, on) => {
   expect(await ui.find({ type: 'Text', text: /^ ok  Review E1/ })).toBeDefined()
   await ui.unmount()
 })
+
+test('the branch, the usage limits and the session fill the header', async ($, on) => {
+  mock.clock(on)
+  on('agent.list', () => ({ value: [] }))
+  const run = (stdout: string) => ({ exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false })
+  on('process.run', (_, e) => ({
+    value:
+      e.argv[1] === 'status'
+        ? run('## pane-stats...origin/pane-stats [ahead 2]\n M hooks/core.ts\n')
+        : run('.git\n.git\na1b2c3d\n'),
+  }))
+  on('session.usage', () => ({
+    value: {
+      startedAt: 0,
+      context: { tokens: 84_000, window: 200_000, percent: 42 },
+      rateLimits: [{ kind: 'five_hour', percentUsed: 34 }, { kind: 'seven_day', percentUsed: 71 }],
+      cost: { usd: 3.42 },
+    },
+  }))
+
+  on('command.register', () => ({ value: { command: 'agents-pane' } }))
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  await $.session.start({ cwd: '/home/me/workspace/agents-pane', surface: 'terminal', isInteractive: true })
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /branch +pane-stats {2}●1 ↑2/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /limit 5h .* 34%/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /week .* 71%/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /session .* \$3\.42/ })).toBeDefined()
+  await ui.unmount()
+})

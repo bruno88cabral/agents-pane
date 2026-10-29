@@ -11,7 +11,12 @@ When you run long orchestrations with many subagents in the background, it is ha
  █▀▄ █▀█ █    █  █ █ █ █ ▀▀▀ ███ █▀  █▀▄
  ▀ ▀ ▀ ▀  ▀▀ ▀▀▀ ▀ ▀  ▀▀     ▀ ▀ ▀▀▀ ▀▀
 
+ branch   pane-stats  ●3 ↑2  worktree
+
  context     583k / 1M  ████████████░░░░░░░░  58%
+ limit 5h        16:40  ███████░░░░░░░░░░░░░  34%
+ week        Sun 09:00  ██████████████░░░░░░  71%
+ session         2h14m  $3.42
 
  agents     6 / 7 done  ████████████████████  86%   ● 1 running
 
@@ -34,10 +39,12 @@ When you run long orchestrations with many subagents in the background, it is ha
 ## Features
 
 - **Repo and context**: the name of the GitHub repo in big letters, three rows tall (the same in every worktree), and under it how full the session's context window is; the bar is green, turns yellow at 70% and red at 85%. The agents bar shows done in green, running in the accent and failed in red.
-- **Stats table**: context, agents and (when Claude keeps a task list with `TaskCreate` / `TaskUpdate` / `TodoWrite`) tasks, each with its value, a bar of the same width and a percentage, in fixed columns.
+- **Branch line**: the branch you are on (or the short hash when HEAD is detached), changed files in yellow, commits ahead (`↑`) and behind (`↓`) the upstream, and `worktree` when the session runs in one. Handy because Claude Code only shows the branch when the conversation starts.
+- **Usage limits and session**: the 5-hour and weekly limits with their reset time and a bar in the context colors, and how long the session has run, with its cost in dollars when you pay per API call. Rows with nothing to show are left out.
+- **Stats table**: context, limits, agents and (when Claude keeps a task list with `TaskCreate` / `TaskUpdate` / `TodoWrite`) tasks, each with its value, a bar of the same width and a percentage, in fixed columns.
 - **Agents grouped by ticket**: when a description names a ticket (`MYK-983`, `ABC-12`), the agents of that ticket share a header and each row keeps only what is its own (`Implement`, `Review`). Agents without a ticket close the list; with no ticket at all the list stays flat.
 - **Live rows**: status, task, tool calls, elapsed time and `bg` for background agents, in columns that never move; only the description gives way. The type shows only when it is not `general-purpose`. A running agent has a sparkline of its tool calls per minute over the last four minutes.
-- **Fits the pane**: under 40 columns the mode and the sparkline go; under 12 rows the pane turns compact (the name in plain text, the stats on one line, a flat list).
+- **Fits the pane**: from 40 rows a blank line sits between every row of the header; under 40 columns the reset times, the mode and the sparkline go; under 12 rows the pane turns compact (the name in plain text, the branch and the stats on one line, a flat list).
 - **ASCII fallback**: `AGENTS_PANE_ASCII=1` draws without block glyphs, for fonts that lack them.
 - **Fixed header**: the summary stays visible while you scroll the list.
 - **Catches up**: agents that started before the plugin loaded (or before a `/reload-plugins`) are picked up too.
@@ -101,7 +108,8 @@ The plugin is a Claude Code hooks module. It listens to a few engine events and 
 | `tool.call` on `Agent`                                 | Marks the agent as failed when the call errors                                |
 | `TaskCreate` / `TaskUpdate` / `TaskList` / `TodoWrite` | Keeps the orchestration task list in sync                                     |
 | `$.agent.list()` every second                          | Shows finer live states (waiting, idle) and adopts agents it has not seen yet |
-| `$.session.repo()` / `$.session.usage()`               | Fill the header with the repo name and the context window fill                |
+| `$.session.repo()` / `$.session.usage()`               | Fill the header with the repo name, the context fill, the limits and the session |
+| `git status` / `git rev-parse` every 5 seconds         | Fill the branch line                                                          |
 | `session.measure`                                      | Redraws the pane as soon as the context fill moves                            |
 
 The plugin never changes what Claude does. Every hook passes the event on untouched, and if a hook fails it is skipped.

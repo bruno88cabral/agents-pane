@@ -4,7 +4,7 @@
 
 import { describe, expect, test } from 'claude-code/testing'
 
-import { labels } from './core'
+import { labels, resetTime } from './core'
 import { groupByTicket, layout, mark, plain, rates, sparkline } from './layout'
 import type { LayoutAgent, LayoutInput } from './layout'
 
@@ -318,5 +318,116 @@ describe('sparkline', () => {
     m = mark(m, 300_000, 12) // two quiet minutes in between
     expect(m.counts).toEqual([6, 10, 10, 10, 12])
     expect(rates(m, 15)).toEqual([0, 0, 2, 3])
+  })
+})
+
+describe('branch, limits and session', () => {
+  const FULL: LayoutInput = {
+    ...base,
+    git: { branch: 'pane-stats', detached: false, worktree: true, changed: 3, ahead: 2, behind: 0 },
+    limits: [
+      { kind: 'five_hour', percent: 34, resetsAt: NOW + 400 * MIN },
+      { kind: 'seven_day', percent: 71.5, resetsAt: NOW + 4 * 24 * 60 * MIN },
+    ],
+    session: { startedAt: NOW - 134 * MIN, usd: 3.42 },
+    agents: TICKETED.slice(0, 2),
+  }
+  const days = labels('en').weekdays
+  const fiveHour = resetTime(NOW + 400 * MIN, NOW, days).padStart(12)
+  const week = resetTime(NOW + 4 * 24 * 60 * MIN, NOW, days).padStart(12)
+  const NAME = [
+    ' █▀▄ ▄▀▄ ▄▀▀ ▀█▀ █▀▄ ▄▀▀     █ █ █▀▀ █▀▄',
+    ' █▀▄ █▀█ █    █  █ █ █ █ ▀▀▀ ███ █▀  █▀▄',
+    ' ▀ ▀ ▀ ▀  ▀▀ ▀▀▀ ▀ ▀  ▀▀     ▀ ▀ ▀▀▀ ▀▀',
+  ]
+  const header = (input: LayoutInput) => plain({ ...layout(input), body: [] })
+
+  test('three blocks: where, usage and activity, a blank line between them', async () => {
+    expect(header(FULL)).toEqual([
+      ...NAME,
+      '',
+      ' branch   pane-stats  ●3 ↑2  worktree',
+      '',
+      ' context     583k / 1M  ████████████░░░░░░░░  58%',
+      ` limit 5h ${fiveHour}  ███████░░░░░░░░░░░░░  34%`,
+      ` week     ${week}  ██████████████░░░░░░  72%`,
+      ' session         2h14m  $3.42',
+      '',
+      ' agents     2 / 2 done  ████████████████████ 100%   ● 0 running',
+      '',
+      ' ── agents ─────────────────────────────────────────────────────',
+    ])
+  })
+
+  test('from 40 rows a blank line sits between every row, never inside the name', async () => {
+    expect(header({ ...FULL, height: 40 })).toEqual([
+      ...NAME,
+      '',
+      ' branch   pane-stats  ●3 ↑2  worktree',
+      '',
+      ' context     583k / 1M  ████████████░░░░░░░░  58%',
+      '',
+      ` limit 5h ${fiveHour}  ███████░░░░░░░░░░░░░  34%`,
+      '',
+      ` week     ${week}  ██████████████░░░░░░  72%`,
+      '',
+      ' session         2h14m  $3.42',
+      '',
+      ' agents     2 / 2 done  ████████████████████ 100%   ● 0 running',
+      '',
+      ' ── agents ─────────────────────────────────────────────────────',
+    ])
+    expect(header({ ...FULL, height: 39 })).toEqual(header(FULL))
+  })
+
+  test('off the terminal the rows are never spaced: the surface draws a small gap', async () => {
+    const lines = header({ ...FULL, terminal: false, height: 60 })
+    const ctx = lines.findIndex(l => l.includes('context'))
+    expect(lines[ctx + 1]).toContain('limit 5h')
+  })
+
+  test('compact mode puts the branch and the 5h limit on the one stats line', async () => {
+    expect(header({ ...FULL, height: 10 })).toEqual([
+      ' RACING-WEB',
+      ' ⎇ pane-stats · ctx 58% · 5h 34% · agents 2/2 · ● 0 running',
+    ])
+  })
+
+  test('under 40 columns the limits keep their bars and drop the reset time', async () => {
+    const lines = header({ ...FULL, width: 39 })
+    expect(lines.find(l => l.includes('limit 5h'))).toBe(" limit 5h               ███░░░░░░░  34%")
+  })
+
+  test('limits take the context colors: green, yellow from 70%, red from 85%', async () => {
+    const tones = (percent: number) =>
+      layout({ ...FULL, limits: [{ kind: 'five_hour', percent }] }).header
+        .find(l => l.some(s => s.text.includes('limit 5h')))!
+        .filter(s => /█|%/.test(s.text)).map(s => s.tone)
+    expect(tones(34)).toEqual(['ok', 'ok'])
+    expect(tones(70)).toEqual(['warn', 'warn'])
+    expect(tones(85)).toEqual(['error', 'error'])
+  })
+
+  test('the branch line colors changes yellow, ahead in the accent, behind yellow', async () => {
+    const line = layout({ ...FULL, git: { ...FULL.git!, behind: 1 } }).header
+      .find(l => l.some(s => s.text === 'pane-stats'))!
+    expect(line.filter(s => /\d/.test(s.text)).map(s => [s.text, s.tone])).toEqual([
+      ['●3', 'warn'], ['↑2', 'accent'], ['↓1', 'warn'],
+    ])
+  })
+
+  test('a clean main checkout shows only the branch; a detached HEAD says so', async () => {
+    const clean = { branch: 'main', detached: false, worktree: false, changed: 0, ahead: 0, behind: 0 }
+    expect(header({ ...FULL, git: clean })[4]).toBe(' branch   main')
+    expect(header({ ...FULL, git: { ...clean, branch: 'a1b2c3d', detached: true } })[4]).toBe(' branch   a1b2c3d  detached')
+  })
+
+  test('without a price the session row shows only how long it has been', async () => {
+    expect(header({ ...FULL, session: { startedAt: NOW - 5 * MIN } })).toContain(' session          5m00')
+  })
+
+  test('nothing known, nothing shown', async () => {
+    const lines = header({ ...base, git: undefined, limits: [], session: undefined })
+    expect(lines.some(l => /branch|limit|week|session/.test(l))).toBe(false)
   })
 })

@@ -230,6 +230,53 @@ export const tokens = (n: number): string => {
   return `${Number.isInteger(m) ? m : m.toFixed(1)}M`
 }
 
+// ---------- git ----------
+
+export type GitState = {
+  /** The branch, or the short commit hash when HEAD is detached. */
+  branch: string
+  detached: boolean
+  /** True in a linked worktree, false in the main checkout. */
+  worktree: boolean
+  /** Files with changes, staged or not, untracked included. */
+  changed: number
+  ahead: number
+  behind: number
+}
+
+/**
+ * Reads `git status --porcelain --branch` and `git rev-parse --git-dir
+ * --git-common-dir --short HEAD`. Undefined when the first is not a status.
+ */
+export const parseGit = (status: string, revParse: string): GitState | undefined => {
+  const [head, ...files] = status.split('\n')
+  if (!head?.startsWith('## ')) return undefined
+  const [gitDir, commonDir, sha = ''] = revParse.trim().split('\n')
+
+  const info = head.slice(3)
+  const unborn = /^(?:No commits yet on|Initial commit on) (.+)$/.exec(info)
+  const detached = info.startsWith('HEAD (no branch)')
+  const branch = unborn?.[1] ?? (detached ? sha : info.split('...')[0]!.split(' ')[0]!)
+
+  return {
+    branch,
+    detached,
+    worktree: gitDir !== undefined && commonDir !== undefined && gitDir !== commonDir,
+    changed: files.filter(Boolean).length,
+    ahead: Number(/ahead (\d+)/.exec(info)?.[1] ?? 0),
+    behind: Number(/behind (\d+)/.exec(info)?.[1] ?? 0),
+  }
+}
+
+// ---------- limits ----------
+
+/** When a limit resets: the time today or tomorrow, else the weekday and time. */
+export const resetTime = (at: number, now: number, weekdays: readonly string[]): string => {
+  const d = new Date(at)
+  const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  return at - now < 24 * 3_600_000 ? time : `${weekdays[d.getDay()]} ${time}`
+}
+
 // ---------- labels ----------
 
 export type Language = 'en' | 'pt-BR'
@@ -255,6 +302,15 @@ export type Labels = {
   statTasks: string
   doneShort: string
   activeShort: string
+  statBranch: string
+  statLimit5h: string
+  statWeek: string
+  statSpend: string
+  statSession: string
+  worktree: string
+  detached: string
+  /** Sunday first, as `Date.getDay()` counts. */
+  weekdays: readonly string[]
   opened: (running: number, total: number) => string
 }
 
@@ -280,6 +336,14 @@ const LABELS: Record<Language, Labels> = {
     statTasks: 'tasks',
     doneShort: 'done',
     activeShort: 'active',
+    statBranch: 'branch',
+    statLimit5h: 'limit 5h',
+    statWeek: 'week',
+    statSpend: 'spend',
+    statSession: 'session',
+    worktree: 'worktree',
+    detached: 'detached',
+    weekdays: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
     opened: (running, total) => `Agents pane open: ${running} running, ${total} in this session.`,
   },
   'pt-BR': {
@@ -303,6 +367,14 @@ const LABELS: Record<Language, Labels> = {
     statTasks: 'tarefas',
     doneShort: 'prontos',
     activeShort: 'ativas',
+    statBranch: 'branch',
+    statLimit5h: 'limite 5h',
+    statWeek: 'semana',
+    statSpend: 'gasto',
+    statSession: 'sessão',
+    worktree: 'worktree',
+    detached: 'solto',
+    weekdays: ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'],
     opened: (running, total) =>
       `Painel de subagentes aberto: ${running} rodando, ${total} nesta sessão.`,
   },

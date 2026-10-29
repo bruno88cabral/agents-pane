@@ -4,8 +4,8 @@
 // Each line is a list of segments carrying a color role, so the adapter only
 // paints them and the tests read them as plain strings with `plain()`.
 
-import { barCells, bigText, elapsed, fit, isLive, tokens } from './core'
-import type { Labels, LiveStatus } from './core'
+import { barCells, bigText, elapsed, fit, isLive, resetTime, tokens } from './core'
+import type { GitState, Labels, LiveStatus } from './core'
 
 /** The color roles of the pane; no tone is the terminal's own color. */
 export type Tone = 'accent' | 'ok' | 'warn' | 'error' | 'dim'
@@ -35,6 +35,11 @@ export type LayoutInput = {
   now: number
   name?: string
   context?: { tokens?: number; window: number; percent?: number }
+  git?: GitState
+  /** Usage limits: `five_hour`, `seven_day` or `spend_limit`, resets in ms. */
+  limits?: ReadonlyArray<{ kind: string; percent: number; resetsAt?: number }>
+  /** When the session (or its last /clear) started, and its cost when priced. */
+  session?: { startedAt: number; usd?: number }
   agents: readonly LayoutAgent[]
   tasks?: { pending: number; active: number; done: number; total: number }
   labels: Labels
@@ -44,6 +49,8 @@ export type LayoutInput = {
 export type Layout = { header: Line[]; body: Line[] }
 
 export const COMPACT_HEIGHT = 12
+/** From this height the terminal has room for a blank line between the rows. */
+export const SPACED_HEIGHT = 40
 export const NARROW_WIDTH = 40
 
 const GUTTER = ' '
@@ -225,36 +232,99 @@ const title = (input: LayoutInput, compact: boolean): Line[] => {
 }
 
 /** Green below 70%, yellow from 70%, red from 85%. */
-const contextTone = (pct: number | undefined): Tone | undefined => {
+const fillTone = (pct: number | undefined): Tone | undefined => {
   if (pct === undefined) return undefined
   if (pct >= 85) return 'error'
   if (pct >= 70) return 'warn'
   return 'ok'
 }
 
-const stats = (input: LayoutInput): Line[] => {
+const barWidthFor = (input: LayoutInput): number => {
+  const width = Math.min(BAR, input.width - GUTTER.length - LABEL - VALUE - 2 - PERCENT)
+  return width >= 4 ? width : 0
+}
+
+/** Where am I: the branch, its changes and whether this is a worktree. */
+const where = (input: LayoutInput): Line[] => {
+  const git = input.git
+  if (!git) return []
   const t = input.labels
-  const barWidth = Math.min(BAR, input.width - GUTTER.length - LABEL - VALUE - 2 - PERCENT)
-  const fillWidth = barWidth >= 4 ? barWidth : 0
+  const a = input.ascii
+  const marks: Segment[] = []
+  if (git.changed > 0) marks.push(seg('  '), seg(`${a ? '*' : '●'}${git.changed}`, 'warn'))
+  if (git.ahead > 0) marks.push(seg(' '), seg(`${a ? '^' : '↑'}${git.ahead}`, 'accent'))
+  if (git.behind > 0) marks.push(seg(' '), seg(`${a ? 'v' : '↓'}${git.behind}`, 'warn'))
+  const tags = [git.detached && t.detached, git.worktree && t.worktree].filter(Boolean)
+  return [
+    [
+      seg(GUTTER),
+      seg(fit(t.statBranch, LABEL), 'dim'),
+      seg(git.branch, undefined, true),
+      ...marks,
+      ...(tags.length > 0 ? [seg(`  ${tags.join(' · ')}`, 'dim')] : []),
+    ],
+  ]
+}
+
+/** How much am I using: context, usage limits and the session. */
+const usage = (input: LayoutInput): Line[] => {
+  const t = input.labels
+  const fillWidth = barWidthFor(input)
   const lines: Line[] = []
 
   const ctx = input.context
   if (ctx) {
-    const tone = contextTone(ctx.percent)
-    const used = ctx.percent ?? 0
+    const tone = fillTone(ctx.percent)
     lines.push(
       statRow(
         t.statContext,
         `${ctx.tokens !== undefined ? tokens(ctx.tokens) : '—'} / ${tokens(ctx.window)}`,
         ctx.tokens !== undefined ? tone : 'dim',
-        bar([{ value: Math.min(100, used), tone }], 100, fillWidth, input.ascii),
+        bar([{ value: Math.min(100, ctx.percent ?? 0), tone }], 100, fillWidth, input.ascii),
         ctx.percent !== undefined ? `${ctx.percent}%` : '',
         tone,
         [],
       ),
-      blank,
     )
   }
+
+  const names: Record<string, string> = {
+    five_hour: t.statLimit5h,
+    seven_day: t.statWeek,
+    spend_limit: t.statSpend,
+  }
+  for (const limit of input.limits ?? []) {
+    const tone = fillTone(limit.percent)
+    const resets =
+      limit.resetsAt !== undefined && input.width >= NARROW_WIDTH
+        ? resetTime(limit.resetsAt, input.now, t.weekdays)
+        : ''
+    lines.push(
+      statRow(
+        names[limit.kind] ?? limit.kind,
+        resets,
+        'dim',
+        bar([{ value: Math.min(100, limit.percent), tone }], 100, fillWidth, input.ascii),
+        `${Math.round(limit.percent)}%`,
+        tone,
+        [],
+      ),
+    )
+  }
+
+  const session = input.session
+  if (session) {
+    const cost = session.usd !== undefined ? [seg(`$${session.usd.toFixed(2)}`)] : []
+    lines.push(statRow(t.statSession, elapsed(session.startedAt, input.now), undefined, cost, '', undefined, []))
+  }
+  return lines
+}
+
+/** What is running: the agents and the orchestration tasks. */
+const activity = (input: LayoutInput): Line[] => {
+  const t = input.labels
+  const fillWidth = barWidthFor(input)
+  const lines: Line[] = []
 
   const agents = input.agents
   const running = agents.filter(a => isLive(a.status)).length
@@ -304,7 +374,10 @@ const compactStats = (input: LayoutInput): Line => {
   const running = agents.filter(a => isLive(a.status)).length
   const ended = agents.length - running
   const parts: string[] = []
+  if (input.git) parts.push(input.ascii ? input.git.branch : `⎇ ${input.git.branch}`)
   if (input.context?.percent !== undefined) parts.push(`${t.statContextShort} ${input.context.percent}%`)
+  const fiveHour = input.limits?.find(l => l.kind === 'five_hour')
+  if (fiveHour) parts.push(`5h ${Math.round(fiveHour.percent)}%`)
   parts.push(`${t.statAgents} ${ended}/${agents.length}`)
   parts.push(`${input.ascii ? '*' : '●'} ${running} ${t.running}`)
   return [seg(GUTTER), seg(parts.join(' · '), 'dim')]
@@ -316,6 +389,15 @@ const separator = (input: LayoutInput): Line => {
   return [seg(GUTTER), seg(head + dash.repeat(Math.max(0, input.width - GUTTER.length - head.length)), 'dim')]
 }
 
+/**
+ * The blocks one under another, a blank line between them and, when
+ * `spaced`, between their rows too. Empty blocks drop out.
+ */
+const stack = (blocks: Line[][], spaced: boolean): Line[] =>
+  blocks
+    .filter(block => block.length > 0)
+    .flatMap(block => [...(spaced ? block.flatMap((l, i) => (i > 0 ? [blank, l] : [l])) : block), blank])
+
 // ---------- the pane ----------
 
 export const layout = (input: LayoutInput): Layout => {
@@ -326,8 +408,9 @@ export const layout = (input: LayoutInput): Layout => {
   if (compact) {
     header.push(...name, compactStats(input))
   } else {
-    if (name.length > 0) header.push(...name, blank)
-    header.push(...stats(input), blank, separator(input))
+    const spaced = input.terminal && input.height >= SPACED_HEIGHT
+    // The big letters are one block of rows: they never take the spacing.
+    header.push(...stack([name], false), ...stack([where(input), usage(input), activity(input)], spaced), separator(input))
   }
 
   const body: Line[] = []

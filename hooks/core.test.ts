@@ -13,6 +13,8 @@ import {
   fit,
   bigText,
   labels,
+  parseGit,
+  resetTime,
   projectName,
   repoName,
   summarize,
@@ -191,5 +193,52 @@ describe('project and context', () => {
   test('bigText gives up when it does not fit or a letter has no glyph', async () => {
     expect(bigText('agents-pane', 42)).toBeUndefined()
     expect(bigText('café', 80)).toBeUndefined()
+  })
+})
+
+describe('git', () => {
+  const MAIN = '.git\n.git\na1b2c3d\n'
+
+  test('reads the branch, the changes and ahead / behind', async () => {
+    const status = '## pane-stats...origin/pane-stats [ahead 2, behind 1]\n M hooks/core.ts\n?? new.ts\n'
+    expect(parseGit(status, MAIN)).toEqual({
+      branch: 'pane-stats', detached: false, worktree: false, changed: 2, ahead: 2, behind: 1,
+    })
+  })
+
+  test('a branch with no upstream and a clean tree', async () => {
+    expect(parseGit('## main\n', MAIN)).toMatchObject({ branch: 'main', changed: 0, ahead: 0, behind: 0 })
+  })
+
+  test('a detached HEAD shows the short hash', async () => {
+    expect(parseGit('## HEAD (no branch)\n', MAIN)).toMatchObject({ branch: 'a1b2c3d', detached: true })
+  })
+
+  test('a repository with no commits yet', async () => {
+    expect(parseGit('## No commits yet on main\n', '.git\n.git\n')).toMatchObject({ branch: 'main' })
+  })
+
+  test('a linked worktree has its own git dir', async () => {
+    const rev = '/repo/.git/worktrees/feature\n/repo/.git\na1b2c3d\n'
+    expect(parseGit('## feature\n', rev)?.worktree).toBe(true)
+  })
+
+  test('anything else is not a status', async () => {
+    expect(parseGit('fatal: not a git repository', '')).toBeUndefined()
+  })
+})
+
+describe('limits', () => {
+  const at = (days: number, h: number, m: number) => new Date(2026, 9, 29 + days, h, m).getTime()
+  const now = at(0, 10, 0)
+  const days = labels('en').weekdays
+
+  test('within a day the reset is the time', async () => {
+    expect(resetTime(at(0, 16, 40), now, days)).toBe('16:40')
+    expect(resetTime(at(1, 9, 5), now, days)).toBe('09:05')
+  })
+
+  test('further away it is the weekday and the time', async () => {
+    expect(resetTime(at(3, 9, 0), now, days)).toBe('Sun 09:00')
   })
 })
