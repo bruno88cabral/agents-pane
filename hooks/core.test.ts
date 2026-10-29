@@ -138,6 +138,12 @@ describe('layout', () => {
     expect(cells[0]).toBe(1)
   })
 
+  test('barCells keeps the width when a tiny value takes a cell', async () => {
+    expect(barCells([2, 98], 20)).toEqual([1, 19])
+    expect(barCells([1, 999], 20).reduce((a, b) => a + b)).toBe(20)
+    expect(barCells([1, 1, 98], 20)).toEqual([1, 1, 18])
+  })
+
   test('barCells is empty when there is nothing', async () => {
     expect(barCells([0, 0], 20)).toEqual([0, 0])
   })

@@ -143,8 +143,16 @@ export const barCells = (values: readonly number[], width: number): number[] => 
     cells[i] = (cells[i] ?? 0) + 1
     left -= 1
   }
+  // A tiny value still shows as one cell, taken from the widest one so the
+  // bar keeps its width.
   values.forEach((v, i) => {
-    if (v > 0 && cells[i] === 0) cells[i] = 1
+    if (v > 0 && cells[i] === 0) {
+      const widest = cells.indexOf(Math.max(...cells))
+      if ((cells[widest] ?? 0) > 1) {
+        cells[widest] = (cells[widest] ?? 0) - 1
+        cells[i] = 1
+      }
+    }
   })
   return cells
 }
