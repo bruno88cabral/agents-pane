@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.1
+
+- A bar with a tiny value (2% of the 5-hour limit, say) no longer grows one cell past the others and pushes its percentage out of line.
+- A screenshot in the README.
+
 ## 0.8.0
 
 - A branch line under the name: the branch (or the short hash when HEAD is detached), changed files, commits ahead and behind the upstream, and whether the session is in a worktree. Read from git every 5 seconds.
