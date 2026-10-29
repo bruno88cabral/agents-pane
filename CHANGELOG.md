@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.0
+
+- A branch line under the name: the branch (or the short hash when HEAD is detached), changed files, commits ahead and behind the upstream, and whether the session is in a worktree. Read from git every 5 seconds.
+- The usage limits in the stats table: the 5-hour and weekly windows (and a gateway spend limit), each with its reset time, a bar and the percentage, in the context colors.
+- A session row: how long the session has run since it started or its last `/clear`, and its cost in dollars when the session is priced per API call.
+- The header in three blocks (where, usage, activity). From 40 rows the terminal puts a blank line between every row; the desktop app and VS Code draw a small gap. Compact mode adds the branch and the 5-hour limit to its one line.
+
 ## 0.7.0
 
 - The name is back to the big letters of 0.5.0, three rows tall.

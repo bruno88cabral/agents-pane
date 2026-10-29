@@ -15,6 +15,7 @@ import {
   endAgent,
   isLive,
   labels,
+  parseGit,
   projectName,
   repoName,
   summarize,
@@ -22,7 +23,7 @@ import {
   updateTask,
   upsertTask,
 } from './core'
-import type { AgentRow, LiveStatus, TaskRow, TaskStatus } from './core'
+import type { AgentRow, GitState, LiveStatus, TaskRow, TaskStatus } from './core'
 import { layout, mark, rates } from './layout'
 import type { Line, Marks, Tone } from './layout'
 
@@ -39,6 +40,16 @@ const COLOR: Record<Exclude<Tone, 'dim'>, 'claude' | 'success' | 'warning' | 'er
   error: 'error',
 }
 
+// The branch line, read from git. Undefined outside a repository or where
+// processes cannot run (git missing, a surface without a host).
+const readGit = async ($: EngineInterface): Promise<GitState | undefined> => {
+  const [status, rev] = await Promise.all([
+    $.process.run(['git', 'status', '--porcelain', '--branch'], { timeoutMs: 5000 }),
+    $.process.run(['git', 'rev-parse', '--git-dir', '--git-common-dir', '--short', 'HEAD'], { timeoutMs: 5000 }),
+  ])
+  return status.exitCode === 0 ? parseGit(status.stdout, rev.stdout) : undefined
+}
+
 const adopt = async ($: EngineInterface): Promise<void> => {
   const [known, now] = await Promise.all([$.agent.list(), $.clock.now()])
   await update($, agents, list => adoptAgents(list, known, now))
@@ -53,6 +64,8 @@ export const register: Register = (on, options) => {
   // Tool-call counts at each minute mark, per running agent, for the
   // sparkline. Kept in memory only: a reload starts them over.
   const marks = new Map<string, Marks>()
+  // Git is read every 5 seconds, not on each drawing.
+  let git: GitState | undefined
 
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'agents-pane', description: t.commandDescription })
@@ -66,8 +79,15 @@ export const register: Register = (on, options) => {
         void adopt($)
         $.ui.invalidate('ui.render')
       })
+      $.clock.every(5000, async () => {
+        git = await readGit($).catch(() => undefined)
+      })
     }
     void adopt($)
+    void readGit($).then(
+      g => (git = g),
+      () => undefined,
+    )
 
     return next(e)
   })
@@ -233,6 +253,13 @@ export const register: Register = (on, options) => {
       // tokens and percent stay unknown until the first response of the live
       // window (a fresh session, or one just compacted).
       context: usage?.context,
+      git,
+      limits: usage?.rateLimits.map(l => ({
+        kind: l.kind,
+        percent: l.percentUsed,
+        resetsAt: l.resetsAt ? Date.parse(l.resetsAt) : undefined,
+      })),
+      session: usage && { startedAt: usage.startedAt, usd: usage.cost?.usd },
       agents: rows.map(a => {
         const m = marks.get(a.id)
         return m ? { ...a, rates: rates(m, a.toolCalls) } : a
@@ -267,7 +294,10 @@ export const register: Register = (on, options) => {
     return (
       <Box flexDirection="column">
         {offset > 0 && <Box height={offset} />}
-        <Box flexDirection="column">{header.map((line, i) => paint(line, `h${i}`))}</Box>
+        {/* A small gap between the rows where the surface has one; none on the terminal. */}
+        <Box flexDirection="column" rowGap="sm">
+          {header.map((line, i) => paint(line, `h${i}`))}
+        </Box>
         {body.slice(offset).map((line, i) => paint(line, `b${i + offset}`))}
       </Box>
     )
