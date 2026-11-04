@@ -24,8 +24,8 @@ import {
   upsertTask,
 } from './core'
 import type { AgentRow, GitState, LiveStatus, TaskRow, TaskStatus } from './core'
-import { layout, mark, rates } from './layout'
-import type { Line, Marks, Tone } from './layout'
+import { layout, listWindow, mark, rates, scrollList } from './layout'
+import type { Line, ListWindow, Marks, Tone } from './layout'
 
 const PANE = 'agents-pane'
 
@@ -66,6 +66,9 @@ export const register: Register = (on, options) => {
   const marks = new Map<string, Marks>()
   // Git is read every 5 seconds, not on each drawing.
   let git: GitState | undefined
+  // Where the terminal's list stands. Undefined until the terminal draws: the
+  // other surfaces leave scrolling to the engine.
+  let list: ListWindow | undefined
 
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'agents-pane', description: t.commandDescription })
@@ -203,6 +206,21 @@ export const register: Register = (on, options) => {
     return next(e)
   }).catch(($, e, next) => next(e))
 
+  // The terminal's list moves here and the engine's window stays where it is,
+  // so the header never leaves the top, not even between two drawings.
+  on('ui.scroll', { component: 'Pane', requestId: PANE }, ($, e, next) => {
+    if (!list) return next(e)
+    const offset = scrollList(list, {
+      by: e.by,
+      bodyRows: e.bodyRows,
+      contentRows: e.contentRows,
+      wheel: e.pointer !== undefined,
+    })
+    list = { ...list, offset }
+    $.ui.invalidate('ui.render')
+    return {}
+  })
+
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Text } = $.ui.resolve(e)
     const [history, taskList, live, now, root, repo, usage] = await Promise.all([
@@ -289,15 +307,32 @@ export const register: Register = (on, options) => {
       </Text>
     )
 
-    // The header is drawn at the scroll offset, so it stays on the first
-    // visible row while the list scrolls under it.
+    const headerRows = (
+      <Box flexDirection="column" rowGap="sm">
+        {header.map((line, i) => paint(line, `h${i}`))}
+      </Box>
+    )
+
+    if (e.surface === 'terminal') {
+      list = listWindow(body.length, Math.max(0, height - header.length), list?.offset ?? 0)
+      const { offset: first, room, max } = list
+      return (
+        <Box flexDirection="column">
+          {headerRows}
+          {body.slice(first, first + room).map((line, i) => paint(line, `b${i + first}`))}
+          {/* A row past the window: the engine only sends the arrows while it has rows to scroll. */}
+          {max > 0 && <Box height={1} />}
+        </Box>
+      )
+    }
+
+    // Elsewhere the engine scrolls the whole tree, so the header is drawn at
+    // the offset and stays on the first visible row.
     return (
       <Box flexDirection="column">
         {offset > 0 && <Box height={offset} />}
-        {/* A small gap between the rows where the surface has one; none on the terminal. */}
-        <Box flexDirection="column" rowGap="sm">
-          {header.map((line, i) => paint(line, `h${i}`))}
-        </Box>
+        {/* A small gap between the rows where the surface has one. */}
+        {headerRows}
         {body.slice(offset).map((line, i) => paint(line, `b${i + offset}`))}
       </Box>
     )

@@ -59,6 +59,52 @@ test('/agents-pane opens the pane and answers with the count', async ($, on) => 
   expect(opened).toBe(1)
 })
 
+const many = (n: number) =>
+  Array.from({ length: n }, (_, i) => ({
+    id: `a${i}`, type: 'general-purpose', description: `Worker ${i}.`, background: true,
+    status: 'completed', startedAt: 0, endedAt: 1000, toolCalls: i,
+  }))
+
+test('on the terminal the header stays and only the rows under it are drawn', async ($, on) => {
+  mock.clock(on, { now: 100_000 })
+  on('agent.list', () => ({ value: [] }))
+  on('state.get', (_, e) => ({ value: { value: e.key === 'agents' ? many(60) : [], version: 1 } }))
+
+  // bodyRows 20: agents row, its blank line and the separator leave 17 rows.
+  const ui = await $.ui.mount({
+    ...PANE,
+    surface: 'terminal',
+    props: { ...PANE.props, scroll: { offset: 0, bodyRows: 20 } },
+  })
+  expect(await ui.find({ type: 'Text', text: /agents\s+60 \/ 60 done/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Worker 0\./ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Worker 16\./ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Worker 17\./ })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('scrolling moves the rows under the header and leaves the window alone', async ($, on) => {
+  mock.clock(on, { now: 100_000 })
+  on('agent.list', () => ({ value: [] }))
+  on('state.get', (_, e) => ({ value: { value: e.key === 'agents' ? many(60) : [], version: 1 } }))
+
+  const ui = await $.ui.mount({
+    ...PANE,
+    surface: 'terminal',
+    props: { ...PANE.props, scroll: { offset: 0, bodyRows: 20 } },
+  })
+  // As the engine raises it for the End key: the whole tree, 20 rows + 1.
+  const raise = $.ui.scroll as unknown as (e: object) => Promise<unknown>
+  await raise({
+    component: 'Pane', requestId: 'agents-pane', offset: 1, by: 21, bodyRows: 20, contentRows: 21,
+    origin: { kind: 'person' },
+  })
+  expect(await ui.find({ type: 'Text', text: /agents\s+60 \/ 60 done/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Worker 59\./ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Worker 0\./ })).toBeUndefined()
+  await ui.unmount()
+})
+
 test('the header shows the stats table and stays at the scroll offset', async ($, on) => {
   mock.clock(on, { now: 100_000 })
   on('agent.list', () => ({
@@ -71,7 +117,7 @@ test('the header shows the stats table and stays at the scroll offset', async ($
 
   const ui = await $.ui.mount({
     ...PANE,
-    surface: 'terminal',
+    surface: 'desktop',
     props: { ...PANE.props, scroll: { offset: 1, bodyRows: 24 } },
   })
   expect(await ui.find({ type: 'Text', text: /agents\s+1 \/ 2 done/ })).toBeDefined()
