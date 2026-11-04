@@ -52,6 +52,8 @@ export const COMPACT_HEIGHT = 12
 /** From this height the terminal has room for a blank line between the rows. */
 export const SPACED_HEIGHT = 40
 export const NARROW_WIDTH = 40
+/** On the terminal the full header must leave this many rows for the list. */
+export const MIN_LIST = 5
 
 const GUTTER = ' '
 const LABEL = 9
@@ -400,18 +402,22 @@ const stack = (blocks: Line[][], spaced: boolean): Line[] =>
 
 // ---------- the pane ----------
 
-export const layout = (input: LayoutInput): Layout => {
-  const compact = input.height < COMPACT_HEIGHT
-  const header: Line[] = []
-  const name = title(input, compact)
+const fullHeader = (input: LayoutInput): Line[] => {
+  const spaced = input.terminal && input.height >= SPACED_HEIGHT
+  // The big letters are one block of rows: they never take the spacing.
+  return [
+    ...stack([title(input, false)], false),
+    ...stack([where(input), usage(input), activity(input)], spaced),
+    separator(input),
+  ]
+}
 
-  if (compact) {
-    header.push(...name, compactStats(input))
-  } else {
-    const spaced = input.terminal && input.height >= SPACED_HEIGHT
-    // The big letters are one block of rows: they never take the spacing.
-    header.push(...stack([name], false), ...stack([where(input), usage(input), activity(input)], spaced), separator(input))
-  }
+export const layout = (input: LayoutInput): Layout => {
+  const short = input.height < COMPACT_HEIGHT
+  const full = short ? [] : fullHeader(input)
+  const wanted = Math.min(MIN_LIST, Math.max(1, input.agents.length))
+  const compact = short || (input.terminal && input.height - full.length < wanted)
+  const header = compact ? [...title(input, true), compactStats(input)] : full
 
   const body: Line[] = []
   const cols = columnsFor(input.agents, input)
@@ -436,6 +442,36 @@ export const layout = (input: LayoutInput): Layout => {
   }
 
   return { header: header.map(l => clip(l, input.width)), body: body.map(l => clip(l, input.width)) }
+}
+
+// ---------- the window over the list ----------
+
+/** Which rows of the list show under the header: `room` of them from `offset`. */
+export type ListWindow = { offset: number; room: number; max: number }
+
+const clamp = (n: number, max: number): number => Math.max(0, Math.min(max, n))
+
+export const listWindow = (rows: number, room: number, offset: number): ListWindow => {
+  const max = Math.max(0, rows - room)
+  return { offset: clamp(offset, max), room, max }
+}
+
+/**
+ * A scroll of the pane, as a move of the list. The engine sizes its keys to
+ * the whole pane: a page key asks for `bodyRows`, Home and End for
+ * `contentRows`. The wheel always counts rows, even when its ticks add up to
+ * one of those.
+ */
+export const scrollList = (
+  list: ListWindow,
+  move: { by: number; bodyRows: number; contentRows: number; wheel?: boolean },
+): number => {
+  const size = Math.abs(move.by)
+  const direction = Math.sign(move.by)
+  if (move.wheel) return clamp(list.offset + move.by, list.max)
+  if (size === move.contentRows) return direction > 0 ? list.max : 0
+  if (size === move.bodyRows) return clamp(list.offset + direction * list.room, list.max)
+  return clamp(list.offset + move.by, list.max)
 }
 
 /** Cuts a line to `width` cells, segment by segment, dropping empty ones. */

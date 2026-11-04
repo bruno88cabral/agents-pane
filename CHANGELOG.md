@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.2
+
+- On the terminal the header no longer moves while the list scrolls: the pane draws only the rows that fit under it, and the engine's window stays put.
+- A pane short on rows no longer gets stuck showing only the header: when the full header would leave the list under 5 rows, the terminal turns compact.
+- PgUp and PgDn move one page of the list, and Home and End go to its ends.
+
 ## 0.8.1
 
 - A bar with a tiny value (2% of the 5-hour limit, say) no longer grows one cell past the others and pushes its percentage out of line.

@@ -5,7 +5,7 @@
 import { describe, expect, test } from 'claude-code/testing'
 
 import { labels, resetTime } from './core'
-import { groupByTicket, layout, mark, plain, rates, sparkline } from './layout'
+import { groupByTicket, layout, listWindow, mark, plain, rates, scrollList, sparkline } from './layout'
 import type { LayoutAgent, LayoutInput } from './layout'
 
 const MIN = 60_000
@@ -216,7 +216,7 @@ describe('rules', () => {
 
   test('from 12 rows the pane is no longer compact', async () => {
     expect(plain(layout({ ...base, height: 11 }))[0]).toBe(' RACING-WEB')
-    expect(plain(layout({ ...base, height: 12 }))[0]).toBe(' █▀▄ ▄▀▄ ▄▀▀ ▀█▀ █▀▄ ▄▀▀     █ █ █▀▀ █▀▄')
+    expect(plain(layout({ ...base, height: 12, agents: TICKETED.slice(0, 1) }))[0]).toBe(' █▀▄ ▄▀▄ ▄▀▀ ▀█▀ █▀▄ ▄▀▀     █ █ █▀▀ █▀▄')
   })
 
   test('off the terminal the name is a title, not big letters', async () => {
@@ -280,6 +280,61 @@ describe('rules', () => {
     const lines = plain(layout(SCENARIOS['some without a ticket']!))
     expect(lines.filter(l => l.includes('general-purpose'))).toEqual([])
     expect(lines.filter(l => l.includes('Explore'))).toHaveLength(1)
+  })
+})
+
+describe('a header that leaves the list no room', () => {
+  // The full header of `base` takes 9 rows.
+  test('on the terminal it turns compact when under 5 agent rows would show', async () => {
+    expect(plain(layout({ ...base, height: 14 }))[0]).toBe(' █▀▄ ▄▀▄ ▄▀▀ ▀█▀ █▀▄ ▄▀▀     █ █ █▀▀ █▀▄')
+    expect(plain(layout({ ...base, height: 13 }))[0]).toBe(' RACING-WEB')
+  })
+
+  test('a short list asks only for its own rows', async () => {
+    const two = TICKETED.slice(0, 2)
+    expect(plain(layout({ ...base, height: 11, agents: two }))[0]).toBe(' RACING-WEB')
+    expect(plain(layout({ ...base, height: 12, agents: two }))[0]).toBe(' █▀▄ ▄▀▄ ▄▀▀ ▀█▀ █▀▄ ▄▀▀     █ █ █▀▀ █▀▄')
+  })
+
+  test('the other surfaces scroll their own way and keep the full header', async () => {
+    expect(plain(layout({ ...base, height: 13, terminal: false }))[0]).toBe('racing-web')
+  })
+})
+
+describe('the window over the list', () => {
+  test('shows what fits under the header and never passes the last row', async () => {
+    expect(listWindow(60, 20, 0)).toEqual({ offset: 0, room: 20, max: 40 })
+    expect(listWindow(60, 20, 99)).toEqual({ offset: 40, room: 20, max: 40 })
+    expect(listWindow(60, 20, -3)).toEqual({ offset: 0, room: 20, max: 40 })
+  })
+
+  test('a list that fits has nothing to scroll', async () => {
+    expect(listWindow(5, 20, 7)).toEqual({ offset: 0, room: 20, max: 0 })
+  })
+
+  const WINDOW = { offset: 30, room: 20, max: 100 }
+  const site = { bodyRows: 34, contentRows: 35 }
+
+  test('the wheel and the arrows move by their rows, stopping at the edges', async () => {
+    expect(scrollList(WINDOW, { ...site, by: 3 })).toBe(33)
+    expect(scrollList(WINDOW, { ...site, by: -3 })).toBe(27)
+    expect(scrollList(WINDOW, { ...site, by: -31 })).toBe(0)
+    expect(scrollList(WINDOW, { ...site, by: 71 })).toBe(100)
+  })
+
+  test('a page key moves one page of the list, not of the whole pane', async () => {
+    expect(scrollList(WINDOW, { ...site, by: 34 })).toBe(50)
+    expect(scrollList(WINDOW, { ...site, by: -34 })).toBe(10)
+  })
+
+  test('Home and End go to the ends of the list', async () => {
+    expect(scrollList(WINDOW, { ...site, by: -35 })).toBe(0)
+    expect(scrollList(WINDOW, { ...site, by: 35 })).toBe(100)
+  })
+
+  test('wheel ticks summed to a page are still rows', async () => {
+    expect(scrollList(WINDOW, { ...site, by: 34, wheel: true })).toBe(64)
+    expect(scrollList(WINDOW, { ...site, by: 35, wheel: true })).toBe(65)
   })
 })
 

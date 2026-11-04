@@ -46,9 +46,9 @@ The same layout in text, during an orchestration grouped by ticket:
 - **Stats table**: context, limits, agents and (when Claude keeps a task list with `TaskCreate` / `TaskUpdate` / `TodoWrite`) tasks, each with its value, a bar of the same width and a percentage, in fixed columns.
 - **Agents grouped by ticket**: when a description names a ticket (`MYK-983`, `ABC-12`), the agents of that ticket share a header and each row keeps only what is its own (`Implement`, `Review`). Agents without a ticket close the list; with no ticket at all the list stays flat.
 - **Live rows**: status, task, tool calls, elapsed time and `bg` for background agents, in columns that never move; only the description gives way. The type shows only when it is not `general-purpose`. A running agent has a sparkline of its tool calls per minute over the last four minutes.
-- **Fits the pane**: from 40 rows a blank line sits between every row of the header; under 40 columns the reset times, the mode and the sparkline go; under 12 rows the pane turns compact (the name in plain text, the branch and the stats on one line, a flat list).
+- **Fits the pane**: from 40 rows a blank line sits between every row of the header; under 40 columns the reset times, the mode and the sparkline go; under 12 rows, or on the terminal when the full header would leave the list under 5 rows, the pane turns compact (the name in plain text, the branch and the stats on one line, a flat list).
 - **ASCII fallback**: `AGENTS_PANE_ASCII=1` draws without block glyphs, for fonts that lack them.
-- **Fixed header**: the summary stays visible while you scroll the list.
+- **Fixed header**: the summary stays in place and only the list scrolls, with the wheel or, once the pane has the keyboard (ctrl+x tab), the arrows, PgUp/PgDn and Home/End.
 - **Catches up**: agents that started before the plugin loaded (or before a `/reload-plugins`) are picked up too.
 - **English and Portuguese** labels.
 - **Works on every Claude Code surface**: terminal, desktop app and VS Code.
