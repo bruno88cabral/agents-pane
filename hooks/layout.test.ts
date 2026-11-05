@@ -338,6 +338,109 @@ describe('the window over the list', () => {
   })
 })
 
+describe('the runner in the header', () => {
+  // `racing-web` takes 40 columns with its gutter. At width 80 it leaves 38 past
+  // a gap of 2: the sprite is 9 wide, so it walks 29 cells, from 42 to 71.
+  const wide = { ...base, width: 80 }
+  const BODY = '▝▜█████▛▘'
+  const lines = (frame: number | undefined, over: Partial<LayoutInput> = {}) =>
+    plain(layout({ ...wide, frame, ...over }))
+  const column = (frame: number) => lines(frame)[2]!.indexOf(BODY)
+
+  test('stands on the blank row under the name, with its eyes open', async () => {
+    const [top, one, two, three] = lines(0)
+    expect(top).toBe(' █▀▄ ▄▀▄ ▄▀▀ ▀█▀ █▀▄ ▄▀▀     █ █ █▀▀ █▀▄')
+    expect(one).toContain('▐▛███▜▌')
+    expect(two).toContain(BODY)
+    expect(three).toContain('▘▘ ▝▝')
+  })
+
+  test('takes no row of its own', async () => {
+    expect(layout({ ...wide, frame: 0 }).header.length).toBe(layout(wide).header.length)
+  })
+
+  test('runs one cell per frame and comes back in from the left', async () => {
+    expect(column(1)).toBe(column(0) + 1)
+    expect(column(29)).toBe(column(0) + 29)
+    expect(column(30)).toBe(column(0))
+  })
+
+  test('moves its legs', async () => {
+    expect(lines(1)[3]!.slice(column(1))).not.toBe(lines(0)[3]!.slice(column(0)))
+  })
+
+  test('hops in the middle of the way, then lands', async () => {
+    const hop = lines(14)
+    expect(hop[0]).toContain('▐▛███▜▌')
+    expect(hop[1]).toContain(BODY)
+    expect(hop[3]).toBe('')
+    expect(lines(11)[3]).not.toBe('')
+    expect(lines(17)[3]).not.toBe('')
+  })
+
+  test('blinks now and then', async () => {
+    expect(lines(20)[1]).toContain('▐█████▌')
+    expect(lines(22)[1]).toContain('▐▛███▜▌')
+  })
+
+  test('only runs while an agent is running', async () => {
+    const idle = { ...TICKETED[5]!, status: 'waiting' as const }
+    expect(lines(0, { agents: [done('a', 'Done', 1, 1)] }).join('')).not.toContain(BODY)
+    expect(lines(0, { agents: [idle] }).join('')).not.toContain(BODY)
+  })
+
+  test('stays out where there is no room or no big name', async () => {
+    expect(lines(undefined).join('')).not.toContain(BODY)
+    expect(lines(0, { width: 50 }).join('')).not.toContain(BODY)
+    expect(lines(0, { height: 10 }).join('')).not.toContain(BODY)
+    expect(lines(0, { ascii: true }).join('')).not.toContain(BODY)
+    expect(lines(0, { terminal: false }).join('')).not.toContain(BODY)
+    expect(lines(0, { name: undefined }).join('')).not.toContain(BODY)
+  })
+
+  test('still fits when it has no cell to walk', async () => {
+    expect(lines(5, { width: 51 })[2]).toContain(BODY)
+    expect(lines(5, { width: 51 })[2]!.length).toBeLessThanOrEqual(51)
+  })
+})
+
+describe('the spiral on a running row', () => {
+  const live = (id: string, status: LayoutAgent['status'] = 'running'): LayoutAgent => ({
+    id, type: 'general-purpose', description: `Worker ${id}`, background: true, status, startedAt: 0, toolCalls: 0,
+  })
+  const glyph = (input: LayoutInput, row = 0) => layout(input).body[row]![1]!
+  const two = { ...base, agents: [live('a'), live('b')] }
+
+  test('turns with the frames', async () => {
+    expect(glyph({ ...two, frame: 0 }).text).toBe('⠋')
+    expect(glyph({ ...two, frame: 1 }).text).toBe('⠙')
+    expect(glyph({ ...two, frame: 10 }).text).toBe('⠋')
+  })
+
+  test('changes color with the frames, each row from its own', async () => {
+    const color = glyph({ ...two, frame: 0 }).color
+    expect(color).toMatch(/^#[0-9a-f]{6}$/)
+    expect(glyph({ ...two, frame: 1 }).color).not.toBe(color)
+    expect(glyph({ ...two, frame: 0 }, 1).color).not.toBe(color)
+  })
+
+  test('without frames the row keeps its still glyph', async () => {
+    expect(glyph(two)).toEqual({ text: '◐', tone: 'accent' })
+  })
+
+  test('only a running agent spins', async () => {
+    expect(glyph({ ...base, agents: [live('a', 'waiting')], frame: 3 }).text).toBe('◐')
+    expect(glyph({ ...base, agents: [done('a', 'Done', 1, 1)], frame: 3 }).text).toBe('✓')
+  })
+
+  test('in ASCII it turns in one color, keeping the column', async () => {
+    const at = (frame: number) => glyph({ ...two, ascii: true, frame })
+    expect([0, 1, 2, 3, 4].map(f => at(f).text)).toEqual(['| ', '/ ', '- ', '\\ ', '| '])
+    expect(at(0).color).toBeUndefined()
+    expect(at(0).tone).toBe('accent')
+  })
+})
+
 describe('grouping', () => {
   test('the ticket may come anywhere in the description', async () => {
     const groups = groupByTicket(TICKETED)!

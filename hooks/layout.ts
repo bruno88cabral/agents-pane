@@ -10,7 +10,8 @@ import type { GitState, Labels, LiveStatus } from './core'
 /** The color roles of the pane; no tone is the terminal's own color. */
 export type Tone = 'accent' | 'ok' | 'warn' | 'error' | 'dim'
 
-export type Segment = { text: string; tone?: Tone; bold?: boolean; title?: boolean }
+/** `color` is a raw color, over the tone. */
+export type Segment = { text: string; tone?: Tone; color?: string; bold?: boolean; title?: boolean }
 export type Line = Segment[]
 
 export type LayoutAgent = {
@@ -33,6 +34,8 @@ export type LayoutInput = {
   terminal: boolean
   ascii: boolean
   now: number
+  /** The animation's frame, counting up; without one the pane is drawn still. */
+  frame?: number
   name?: string
   context?: { tokens?: number; window: number; percent?: number }
   git?: GitState
@@ -77,6 +80,22 @@ export const statusGlyph = (status: LiveStatus, ascii: boolean): { text: string;
   if (status === 'failed' || status === 'killed') return { text: ascii ? 'x' : '✗', tone: 'error' }
   if (status === 'pending') return { text: ascii ? '.' : '·', tone: 'dim' }
   return { text: ascii ? '..' : '◐', tone: 'accent' }
+}
+
+const SPIRAL = '⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
+const SPIRAL_ASCII = '|/-\\'
+const RAINBOW = [
+  '#ff5f5f', '#ff8f4f', '#ffbf4f', '#dfdf4f', '#8fdf4f', '#4fdf7f',
+  '#4fdfcf', '#4fbfff', '#4f8fff', '#7f6fff', '#bf6fff', '#ff6fcf',
+]
+/** How far apart two rows are in the rainbow. */
+const RAINBOW_STEP = 4
+
+/** A running agent's glyph at `frame`. `line` is its place in the list, so rows differ. */
+export const spiral = (frame: number, line: number, ascii: boolean): Segment => {
+  if (ascii) return seg(SPIRAL_ASCII[frame % SPIRAL_ASCII.length]!, 'accent')
+  const color = RAINBOW[(frame + line * RAINBOW_STEP) % RAINBOW.length]
+  return { text: SPIRAL[frame % SPIRAL.length]!, ...(color && { color }) }
 }
 
 const LEVELS = '▁▂▃▄▅▆▇█'
@@ -178,7 +197,10 @@ const agentRow = (
   input: LayoutInput,
 ): Line => {
   const live = isLive(agent.status)
-  const g = statusGlyph(agent.status, input.ascii)
+  const spinning = agent.status === 'running' && input.frame !== undefined
+  const g = spinning
+    ? spiral(input.frame!, input.agents.indexOf(agent), input.ascii)
+    : statusGlyph(agent.status, input.ascii)
   const time = elapsed(agent.startedAt, live ? input.now : (agent.endedAt ?? input.now))
 
   const right: Segment[] = [
@@ -201,7 +223,7 @@ const agentRow = (
   const description = Math.max(1, input.width - left - 1 - rightWidth)
   return [
     seg(GUTTER + ' '.repeat(indent)),
-    seg(g.text.padEnd(cols.glyph), g.tone),
+    { ...g, text: g.text.padEnd(cols.glyph) },
     seg('  '),
     seg(fit(text, description)),
     seg(' '),
@@ -402,11 +424,52 @@ const stack = (blocks: Line[][], spaced: boolean): Line[] =>
 
 // ---------- the pane ----------
 
+const RUNNER_TOP = ' ▐▛███▜▌ '
+const RUNNER_BLINK = ' ▐█████▌ '
+const RUNNER_BODY = '▝▜█████▛▘'
+const RUNNER_LEGS = ['  ▘▘ ▝▝  ', ' ▘ ▘ ▝ ▝ ', '  ▘  ▝   ', '   ▘ ▘▝  ']
+const RUNNER_WIDTH = RUNNER_BODY.length
+const RUNNER_GAP = 2
+const BLINK_EVERY = 22
+const BLINK_FRAMES = 2
+/** Cells it needs to walk to hop on the way, and how far from the middle it stays up. */
+const HOP_WALK = 8
+const HOP_REACH = 2
+
+const textWidth = (line: Line): number => line.reduce((n, s) => n + s.text.length, 0)
+
+/**
+ * The runner over the name's rows and the blank one under them: on the ground
+ * it stands on that blank row, so it takes no row of its own. It needs the big
+ * letters, a running agent and the room right of the name.
+ */
+const withRunner = (rows: Line[], input: LayoutInput): Line[] => {
+  const frame = input.frame
+  if (frame === undefined || rows.length !== 4) return rows
+  if (!input.agents.some(a => a.status === 'running')) return rows
+  const start = Math.max(...rows.map(textWidth)) + RUNNER_GAP
+  const walk = input.width - start - RUNNER_WIDTH
+  if (walk < 0) return rows
+
+  const x = frame % (walk + 1)
+  const up = walk >= HOP_WALK && Math.abs(x - Math.floor(walk / 2)) <= HOP_REACH
+  const blink = frame % BLINK_EVERY >= BLINK_EVERY - BLINK_FRAMES
+  const legs = RUNNER_LEGS[up ? 0 : frame % RUNNER_LEGS.length]!
+  const sprite = [blink ? RUNNER_BLINK : RUNNER_TOP, RUNNER_BODY, legs]
+  const top = up ? 0 : 1
+
+  return rows.map((line, i) => {
+    const part = sprite[i - top]
+    if (part === undefined) return line
+    return [...line, seg(' '.repeat(start + x - textWidth(line))), seg(part, 'accent', true)]
+  })
+}
+
 const fullHeader = (input: LayoutInput): Line[] => {
   const spaced = input.terminal && input.height >= SPACED_HEIGHT
   // The big letters are one block of rows: they never take the spacing.
   return [
-    ...stack([title(input, false)], false),
+    ...withRunner(stack([title(input, false)], false), input),
     ...stack([where(input), usage(input), activity(input)], spaced),
     separator(input),
   ]
