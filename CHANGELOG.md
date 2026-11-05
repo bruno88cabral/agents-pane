@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.0
+
+- While an agent is running, the Claude mascot runs across the free space right of the name on the terminal, hopping on the way and blinking now and then. It takes no row of its own and stays out in compact mode, in a narrow pane or beside a long name.
+- A running agent's status on the terminal is a spiral going through the colors of the rainbow, each row from its own color. With `AGENTS_PANE_ASCII=1` it turns as `| / - \` in one color.
+- The pane redraws five times a second only while the engine lists an agent as running. Waiting and idle agents keep the still `◐`, so does one the engine no longer lists, and the desktop app and VS Code stay still.
+
 ## 0.8.2
 
 - On the terminal the header no longer moves while the list scrolls: the pane draws only the rows that fit under it, and the engine's window stays put.

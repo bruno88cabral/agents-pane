@@ -28,6 +28,7 @@ import { layout, listWindow, mark, rates, scrollList } from './layout'
 import type { Line, ListWindow, Marks, Tone } from './layout'
 
 const PANE = 'agents-pane'
+const FRAME_MS = 200
 
 const agents = atom({ plugin: 'agents-pane', key: 'agents' } as const, [])
 const tasks = atom({ plugin: 'agents-pane', key: 'tasks' } as const, [])
@@ -69,6 +70,9 @@ export const register: Register = (on, options) => {
   // Where the terminal's list stands. Undefined until the terminal draws: the
   // other surfaces leave scrolling to the engine.
   let list: ListWindow | undefined
+  // Counts up only while the terminal has a running agent to animate.
+  let frame = 0
+  let animating = false
 
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'agents-pane', description: t.commandDescription })
@@ -80,6 +84,11 @@ export const register: Register = (on, options) => {
       ticking = true
       $.clock.every(1000, () => {
         void adopt($)
+        $.ui.invalidate('ui.render')
+      })
+      $.clock.every(FRAME_MS, () => {
+        if (!animating) return
+        frame += 1
         $.ui.invalidate('ui.render')
       })
       $.clock.every(5000, async () => {
@@ -234,15 +243,19 @@ export const register: Register = (on, options) => {
     ])
 
     // The stored status says running until we see the end; the engine's
-    // live list knows finer states (waiting, idle) while it runs.
+    // live list knows finer states (waiting, idle) while it runs. One it no
+    // longer lists has ended unseen or runs where the list does not reach (a
+    // workflow's): still live here, but with nothing to say it is working.
     const liveById = new Map(live.map(a => [a.id, a.status]))
     const rows = history.map(a => {
-      const current = liveById.get(a.id)
-      const status: LiveStatus = a.status === 'running' && current ? current : a.status
+      const status: LiveStatus = a.status === 'running' ? (liveById.get(a.id) ?? 'idle') : a.status
       return { ...a, status }
     })
 
     ascii ??= (await $.env.get('AGENTS_PANE_ASCII').catch(() => undefined)) === '1'
+
+    const onTerminal = e.surface === 'terminal'
+    animating = onTerminal && rows.some(a => a.status === 'running')
 
     const s = summarize(rows, taskList)
     const width = Math.max(20, e.props.bodyColumns ?? e.viewport?.columns ?? 80)
@@ -264,9 +277,10 @@ export const register: Register = (on, options) => {
     const { header, body } = layout({
       width,
       height,
-      terminal: e.surface === 'terminal',
+      terminal: onTerminal,
       ascii,
       now,
+      ...(onTerminal && { frame }),
       name,
       // tokens and percent stay unknown until the first response of the live
       // window (a fresh session, or one just compacted).
@@ -298,7 +312,7 @@ export const register: Register = (on, options) => {
               key={String(i)}
               bold={seg.bold}
               dimColor={seg.tone === 'dim'}
-              color={seg.tone && seg.tone !== 'dim' ? COLOR[seg.tone] : undefined}
+              color={seg.color ?? (seg.tone && seg.tone !== 'dim' ? COLOR[seg.tone] : undefined)}
             >
               {seg.text || ' '}
             </Text>
@@ -313,7 +327,7 @@ export const register: Register = (on, options) => {
       </Box>
     )
 
-    if (e.surface === 'terminal') {
+    if (onTerminal) {
       list = listWindow(body.length, Math.max(0, height - header.length), list?.offset ?? 0)
       const { offset: first, room, max } = list
       return (

@@ -140,6 +140,42 @@ test('the header shows the stats table and stays at the scroll offset', async ($
   await short.unmount()
 })
 
+const LIVE_A1 = { id: 'a1', description: 'Implement E1', type: 'general-purpose', status: 'running' }
+
+test('an agent the engine no longer lists stops spinning', async ($, on) => {
+  mock.clock(on, { now: 100_000 })
+  on('agent.list', () => ({ value: [] }))
+  on('state.get', (_, e) => ({ value: { value: SEEDED[e.key], version: 1 } }))
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /^ ◐  Implement E1/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('an agent the engine lists as waiting stays still', async ($, on) => {
+  mock.clock(on, { now: 100_000 })
+  on('agent.list', () => ({ value: [{ ...LIVE_A1, status: 'waiting' }] }))
+  on('state.get', (_, e) => ({ value: { value: SEEDED[e.key], version: 1 } }))
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /^ ◐  Implement E1/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('a running agent spins on the terminal and stays still elsewhere', async ($, on) => {
+  mock.clock(on, { now: 100_000 })
+  on('agent.list', () => ({ value: [LIVE_A1] }))
+  on('state.get', (_, e) => ({ value: { value: SEEDED[e.key], version: 1 } }))
+
+  const terminal = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await terminal.find({ type: 'Text', text: /^ ⠋  Implement E1/ })).toBeDefined()
+  await terminal.unmount()
+
+  const desktop = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await desktop.find({ type: 'Text', text: /^ ◐  Implement E1/ })).toBeDefined()
+  await desktop.unmount()
+})
+
 test('with language pt-BR the pane speaks Portuguese', { options: { language: 'pt-BR' } }, async ($, on) => {
   mock.clock(on, { now: 100_000 })
   on('agent.list', () => ({ value: [] }))
@@ -239,7 +275,7 @@ test('before the first response the context shows only the window', async ($, on
 test('AGENTS_PANE_ASCII=1 draws the pane with plain ASCII', async ($, on) => {
   mock.clock(on, { now: 100_000 })
   mock.env(on, { AGENTS_PANE_ASCII: '1' })
-  on('agent.list', () => ({ value: [] }))
+  on('agent.list', () => ({ value: [LIVE_A1] }))
   on('session.repo', () => ({
     value: { root: '/home/me/workspace/agents-pane', remote: 'git@github.com:me/agents-pane.git', internal: false, name: null },
   }))
@@ -248,7 +284,7 @@ test('AGENTS_PANE_ASCII=1 draws the pane with plain ASCII', async ($, on) => {
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   expect(await ui.find({ type: 'Text', text: /^ AGENTS-PANE$/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /-- agents ---/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /^ \.\.  Implement E1/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^ \|   Implement E1/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /^ ok  Review E1/ })).toBeDefined()
   await ui.unmount()
 })
