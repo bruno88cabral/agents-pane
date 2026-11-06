@@ -276,6 +276,26 @@ describe('rules', () => {
     ])
   })
 
+  test('an idle agent is dim, apart from the running ones', async () => {
+    const idle: LayoutAgent = { ...TICKETED[5]!, id: 'i1', description: 'Scan the repo', status: 'idle' }
+    expect(layout({ ...base, agents: [idle] }).body.map(l => l[1])).toEqual([{ text: '○', tone: 'dim' }])
+    expect(layout({ ...base, ascii: true, agents: [idle] }).body.map(l => l[1])).toEqual([{ text: '- ', tone: 'dim' }])
+  })
+
+  test('the agents row counts idle agents apart, in the bar and the legend', async () => {
+    const input = { ...base, width: 80, agents: [...TICKETED, { ...TICKETED[5]!, id: 'i1', status: 'idle' as const }] }
+    const row = layout(input).header.find(l => l.some(s => s.text.includes('agents ')))!
+    expect(plain({ header: [row], body: [] })[0]).toBe(
+      ' agents     5 / 7 done  ████████████████████  71%   ● 1 running  ○ 1 idle',
+    )
+    expect(row.filter(s => /█/.test(s.text)).map(s => s.tone)).toEqual(['ok', 'accent', 'dim'])
+    expect(plain(layout({ ...input, height: 10 }))[1]).toBe(' ctx 58% · agents 5/7 · ● 1 running · ○ 1 idle')
+  })
+
+  test('pt-BR calls them ociosos', async () => {
+    expect(labels('pt-BR').idle).toBe('ociosos')
+  })
+
   test('only a type other than general-purpose shows', async () => {
     const lines = plain(layout(SCENARIOS['some without a ticket']!))
     expect(lines.filter(l => l.includes('general-purpose'))).toEqual([])

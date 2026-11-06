@@ -111,6 +111,14 @@ describe('todos', () => {
 })
 
 describe('summary', () => {
+  test('counts idle apart from running, though both are live', async () => {
+    const s = summarize(
+      [{ status: 'running' }, { status: 'idle' }, { status: 'idle' }, { status: 'completed' }],
+      [],
+    )
+    expect(s.agents).toEqual({ running: 1, idle: 2, done: 1, failed: 0, total: 4 })
+  })
+
   test('counts live states as running and killed as failed', async () => {
     const s = summarize(
       [
@@ -121,7 +129,7 @@ describe('summary', () => {
       ],
       [{ status: 'pending' }, { status: 'in_progress' }, { status: 'completed' }],
     )
-    expect(s.agents).toEqual({ running: 2, done: 1, failed: 1, total: 4 })
+    expect(s.agents).toEqual({ running: 2, idle: 0, done: 1, failed: 1, total: 4 })
     expect(s.tasks).toEqual({ pending: 1, active: 1, done: 1, total: 3 })
   })
 })

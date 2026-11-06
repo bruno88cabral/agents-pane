@@ -245,10 +245,11 @@ export const register: Register = (on, options) => {
     // The stored status says running until we see the end; the engine's
     // live list knows finer states (waiting, idle) while it runs. One it no
     // longer lists has ended unseen or runs where the list does not reach (a
-    // workflow's): still live here, but with nothing to say it is working.
+    // workflow's): still live here, but with nothing to say it is working,
+    // so it stays still. It is not idle: idle is only what the engine says.
     const liveById = new Map(live.map(a => [a.id, a.status]))
     const rows = history.map(a => {
-      const status: LiveStatus = a.status === 'running' ? (liveById.get(a.id) ?? 'idle') : a.status
+      const status: LiveStatus = a.status === 'running' ? (liveById.get(a.id) ?? 'waiting') : a.status
       return { ...a, status }
     })
 

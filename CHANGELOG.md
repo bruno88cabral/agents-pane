@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.10.0
+
+- Idle agents, done with their turn but kept alive with their context, are no longer counted as running. They show a dim `○` (`-` in ASCII), their own dim segment in the agents bar and `○ 1 idle` after the running count, on the full header and in compact mode.
+- An agent the engine no longer lists keeps the still `◐` and counts as running, as before, but is no longer called idle: only the engine says an agent is idle.
+
 ## 0.9.0
 
 - While an agent is running, the Claude mascot runs across the free space right of the name on the terminal, hopping on the way and blinking now and then. It takes no row of its own and stays out in compact mode, in a narrow pane or beside a long name.

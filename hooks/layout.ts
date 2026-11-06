@@ -4,7 +4,7 @@
 // Each line is a list of segments carrying a color role, so the adapter only
 // paints them and the tests read them as plain strings with `plain()`.
 
-import { barCells, bigText, elapsed, fit, isLive, resetTime, tokens } from './core'
+import { barCells, bigText, elapsed, fit, isLive, resetTime, summarize, tokens } from './core'
 import type { GitState, Labels, LiveStatus } from './core'
 
 /** The color roles of the pane; no tone is the terminal's own color. */
@@ -79,6 +79,7 @@ export const statusGlyph = (status: LiveStatus, ascii: boolean): { text: string;
   if (status === 'completed') return { text: ascii ? 'ok' : '✓', tone: 'ok' }
   if (status === 'failed' || status === 'killed') return { text: ascii ? 'x' : '✗', tone: 'error' }
   if (status === 'pending') return { text: ascii ? '.' : '·', tone: 'dim' }
+  if (status === 'idle') return { text: ascii ? '-' : '○', tone: 'dim' }
   return { text: ascii ? '..' : '◐', tone: 'accent' }
 }
 
@@ -350,10 +351,8 @@ const activity = (input: LayoutInput): Line[] => {
   const fillWidth = barWidthFor(input)
   const lines: Line[] = []
 
+  const { running, idle, done, failed } = summarize(input.agents, []).agents
   const agents = input.agents
-  const running = agents.filter(a => isLive(a.status)).length
-  const failed = agents.filter(a => a.status === 'failed' || a.status === 'killed').length
-  const done = agents.length - running - failed
   const dot = input.ascii ? '*' : '●'
   lines.push(
     statRow(
@@ -361,7 +360,12 @@ const activity = (input: LayoutInput): Line[] => {
       ratio(done + failed, agents.length, t.doneShort),
       undefined,
       bar(
-        [{ value: done, tone: 'ok' }, { value: failed, tone: 'error' }, { value: running, tone: 'accent' }],
+        [
+          { value: done, tone: 'ok' },
+          { value: failed, tone: 'error' },
+          { value: running, tone: 'accent' },
+          { value: idle, tone: 'dim' },
+        ],
         agents.length,
         fillWidth,
         input.ascii,
@@ -371,6 +375,7 @@ const activity = (input: LayoutInput): Line[] => {
       [
         seg(`   ${dot} ${running} ${t.running}`, 'accent'),
         ...(failed > 0 ? [seg(`  ${input.ascii ? 'x' : '✗'} ${failed} ${t.failed}`, 'error')] : []),
+        ...(idle > 0 ? [seg(`  ${input.ascii ? '-' : '○'} ${idle} ${t.idle}`, 'dim')] : []),
       ],
     ),
   )
@@ -395,8 +400,8 @@ const activity = (input: LayoutInput): Line[] => {
 const compactStats = (input: LayoutInput): Line => {
   const t = input.labels
   const agents = input.agents
-  const running = agents.filter(a => isLive(a.status)).length
-  const ended = agents.length - running
+  const { running, idle, done, failed } = summarize(agents, []).agents
+  const ended = done + failed
   const parts: string[] = []
   if (input.git) parts.push(input.ascii ? input.git.branch : `⎇ ${input.git.branch}`)
   if (input.context?.percent !== undefined) parts.push(`${t.statContextShort} ${input.context.percent}%`)
@@ -404,6 +409,7 @@ const compactStats = (input: LayoutInput): Line => {
   if (fiveHour) parts.push(`5h ${Math.round(fiveHour.percent)}%`)
   parts.push(`${t.statAgents} ${ended}/${agents.length}`)
   parts.push(`${input.ascii ? '*' : '●'} ${running} ${t.running}`)
+  if (idle > 0) parts.push(`${input.ascii ? '-' : '○'} ${idle} ${t.idle}`)
   return [seg(GUTTER), seg(parts.join(' · '), 'dim')]
 }
 
