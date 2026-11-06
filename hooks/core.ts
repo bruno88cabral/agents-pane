@@ -94,7 +94,8 @@ export const isLive = (s: LiveStatus): boolean => LIVE.has(s)
 // ---------- summary ----------
 
 export type Summary = {
-  agents: { running: number; done: number; failed: number; total: number }
+  /** `idle` agents are live but not working: done with their turn, kept for more. */
+  agents: { running: number; idle: number; done: number; failed: number; total: number }
   tasks: { pending: number; active: number; done: number; total: number }
 }
 
@@ -102,13 +103,15 @@ export const summarize = (
   agents: ReadonlyArray<{ status: LiveStatus }>,
   tasks: ReadonlyArray<{ status: TaskStatus }>,
 ): Summary => {
-  const running = agents.filter(a => isLive(a.status)).length
+  const live = agents.filter(a => isLive(a.status)).length
+  const idle = agents.filter(a => a.status === 'idle').length
   const failed = agents.filter(a => a.status === 'failed' || a.status === 'killed').length
   return {
     agents: {
-      running,
+      running: live - idle,
+      idle,
       failed,
-      done: agents.length - running - failed,
+      done: agents.length - live - failed,
       total: agents.length,
     },
     tasks: {
@@ -294,6 +297,7 @@ export type Labels = {
   commandDescription: string
   agents: string
   running: string
+  idle: string
   done: string
   failed: string
   total: string
@@ -328,6 +332,7 @@ const LABELS: Record<Language, Labels> = {
     commandDescription: 'Open the pane with the agents of this session and their status',
     agents: 'Agents',
     running: 'running',
+    idle: 'idle',
     done: 'done',
     failed: 'failed',
     total: 'total',
@@ -359,6 +364,7 @@ const LABELS: Record<Language, Labels> = {
     commandDescription: 'Abre o painel com os subagentes desta sessão e o status de cada um',
     agents: 'Agentes',
     running: 'rodando',
+    idle: 'ociosos',
     done: 'finalizados',
     failed: 'falhos',
     total: 'no total',
