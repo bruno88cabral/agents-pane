@@ -196,6 +196,19 @@ test('an agent the engine lists as waiting stays still', async ($, on) => {
   await ui.unmount()
 })
 
+test('a done agent the engine lists as waiting again shows as running', async ($, on) => {
+  mock.clock(on, { now: 100_000 })
+  on('agent.list', () => ({
+    value: [{ id: 'a2', description: 'Review E1', type: 'general-purpose', status: 'waiting' }],
+  }))
+  on('state.get', (_, e) => ({ value: { value: SEEDED[e.key], version: 1 } }))
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /^ ◐  Review E1/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /● 2 running/ })).toBeDefined()
+  await ui.unmount()
+})
+
 test('an agent the engine lists as idle shows as idle, not running', async ($, on) => {
   mock.clock(on, { now: 100_000 })
   on('agent.list', () => ({ value: [{ ...LIVE_A1, status: 'idle' }] }))

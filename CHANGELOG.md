@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.10.3
+
+- An agent the pane closed (`✓` or `✗`) that the engine lists as live again shows and counts as running: one waiting on background work it owns after its turn ended (a test suite, a visual check), or resumed by a message under the same id. The stored row reopens too, its clock running from its start.
+- A ticket in brackets, `Review Task 6 (MYK-1169)`, or with siblings, `MYK-1161/1162`, no longer leaves a stray `(`, `)` or `/1162` in the row or the group header.
+
 ## 0.10.2
 
 - An agent the engine does not list is lost after 5 minutes without a tool call, not only when it never called one. Agents stopped after a call or two (before 0.10.1 watched `TaskStop`) no longer stay `◐` and running. Their clock stops at their last call.

@@ -270,7 +270,11 @@ export const register: Register = (on, options) => {
       if (isLost(a, liveById.has(a.id), now)) {
         return { ...a, status: 'failed' as LiveStatus, endedAt: lastSeen(a) }
       }
-      const status: LiveStatus = a.status === 'running' ? (liveById.get(a.id) ?? 'waiting') : a.status
+      // A live status from the engine wins over a stored end: the agent went
+      // back to work (background work it owns, a message that resumed it).
+      const listed = liveById.get(a.id)
+      const status: LiveStatus =
+        listed && isLive(listed) ? listed : a.status === 'running' ? (listed ?? 'waiting') : a.status
       return { ...a, status }
     })
 

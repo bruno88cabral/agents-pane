@@ -154,6 +154,16 @@ type Group = { ticket?: string; subtitle: string; rows: Array<{ agent: LayoutAge
 const squeeze = (text: string): string => text.replace(/\s+/g, ' ').trim()
 
 /**
+ * The ticket as written, with what belongs to it: the brackets around it,
+ * `(MYK-12)`, and the siblings after it, `MYK-12/13` or `MYK-12, MYK-14`.
+ */
+const TICKET_TOKEN = /[([]?\s*\b([A-Z]+-\d+)\b(?:\s*[/,+&]\s*(?:[A-Z]+-)?\d+\b)*\s*[)\]]?/
+
+/** Squeezed, without separators or an empty pair of brackets left at the ends. */
+const tidy = (text: string): string =>
+  squeeze(text.replace(/\(\s*\)|\[\s*\]/g, ' ')).replace(/^[\s:·–—-]+|[\s:·–—-]+$/g, '')
+
+/**
  * Agents grouped by the ticket their description names. Undefined when none
  * names one: the list stays flat. Agents without a ticket close the list in a
  * group of their own, with no header.
@@ -164,22 +174,22 @@ export const groupByTicket = (agents: readonly LayoutAgent[]): Group[] | undefin
   const groups = new Map<string, Group>()
   const loose: Group = { subtitle: '', rows: [] }
   for (const agent of agents) {
-    const match = TICKET.exec(agent.description)
+    const match = TICKET_TOKEN.exec(agent.description)
     if (!match?.[1]) {
       loose.rows.push({ agent, text: agent.description })
       continue
     }
     const ticket = match[1]
-    const after = squeeze(agent.description.slice((match.index ?? 0) + ticket.length))
+    const after = tidy(agent.description.slice(match.index + match[0].length))
     let group = groups.get(ticket)
     if (!group) {
       group = { ticket, subtitle: after, rows: [] }
       groups.set(ticket, group)
     }
-    const rest = squeeze(agent.description.replace(ticket, ' '))
+    const rest = tidy(agent.description.replace(match[0], ' '))
     const text =
       group.subtitle && rest.includes(group.subtitle)
-        ? squeeze(rest.replace(group.subtitle, ' '))
+        ? tidy(rest.replace(group.subtitle, ' '))
         : rest
     group.rows.push({ agent, text: text || group.subtitle || ticket })
   }

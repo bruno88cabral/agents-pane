@@ -476,6 +476,19 @@ describe('grouping', () => {
     expect(group?.rows[0]?.text).toBe('spec')
   })
 
+  test('brackets and sibling tickets go with the ticket', async () => {
+    const groups = groupByTicket([
+      { ...TICKETED[0]!, description: 'Review Task 6 N4b (MYK-1169)' },
+      { ...TICKETED[0]!, description: 'Refinar N11+N12 MYK-1161/1162' },
+      { ...TICKETED[0]!, description: 'Fatiar [MYK-7]: tela de menu' },
+    ])!
+    expect(groups.map(g => [g.ticket, g.subtitle, g.rows.map(r => r.text)])).toEqual([
+      ['MYK-1169', '', ['Review Task 6 N4b']],
+      ['MYK-1161', '', ['Refinar N11+N12']],
+      ['MYK-7', 'tela de menu', ['Fatiar']],
+    ])
+  })
+
   test('no ticket anywhere keeps the list flat', async () => {
     expect(groupByTicket([{ ...TICKETED[0]!, description: 'Implement E1' }])).toBeUndefined()
   })

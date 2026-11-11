@@ -76,6 +76,26 @@ describe('agents', () => {
     expect(list[2]?.endedAt).toBe(1_000)
   })
 
+  test('settleAgents reopens an ended agent the harness lists as live', async () => {
+    const list = [
+      agent({ status: 'completed', endedAt: 5_000 }),
+      agent({ id: 'a2', status: 'completed', endedAt: 5_000 }),
+      agent({ id: 'a3', status: 'failed', endedAt: 5_000 }),
+    ]
+    const known = [
+      { id: 'a1', status: 'waiting' as const },
+      { id: 'a2', status: 'completed' as const },
+    ]
+    const settled = settleAgents(list, known, 9_000)
+    expect(settled.map(a => [a.id, a.status, a.endedAt])).toEqual([
+      ['a1', 'running', undefined],
+      ['a2', 'completed', 5_000],
+      ['a3', 'failed', 5_000],
+    ])
+    expect('endedAt' in settled[0]!).toBe(false)
+    expect(settleAgents(settled, known, 20_000)).toBe(settled)
+  })
+
   test('settleAgents keeps the ends the harness reports, once', async () => {
     const list = [agent(), agent({ id: 'a2' }), agent({ id: 'a3' }), agent({ id: 'a4', status: 'completed', endedAt: 1 })]
     const known = [
