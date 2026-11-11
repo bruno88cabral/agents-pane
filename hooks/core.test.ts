@@ -12,6 +12,9 @@ import {
   endAgent,
   fit,
   bigText,
+  isLost,
+  LOST_AFTER_MS,
+  settleAgents,
   labels,
   parseGit,
   resetTime,
@@ -71,6 +74,33 @@ describe('agents', () => {
       ['a3', 'failed'],
     ])
     expect(list[2]?.endedAt).toBe(1_000)
+  })
+
+  test('settleAgents keeps the ends the harness reports, once', async () => {
+    const list = [agent(), agent({ id: 'a2' }), agent({ id: 'a3' }), agent({ id: 'a4', status: 'completed', endedAt: 1 })]
+    const known = [
+      { id: 'a1', status: 'killed' as const },
+      { id: 'a2', status: 'completed' as const },
+      { id: 'a3', status: 'idle' as const },
+      { id: 'a4', status: 'failed' as const },
+    ]
+    const settled = settleAgents(list, known, 9_000)
+    expect(settled.map(a => [a.id, a.status, a.endedAt])).toEqual([
+      ['a1', 'failed', 9_000],
+      ['a2', 'completed', 9_000],
+      ['a3', 'running', undefined],
+      ['a4', 'completed', 1],
+    ])
+    expect(settleAgents(settled, known, 20_000)).toBe(settled)
+  })
+
+  test('isLost: unlisted, no tool calls and past the grace only', async () => {
+    const late = LOST_AFTER_MS + 1
+    expect(isLost(agent(), false, late)).toBe(true)
+    expect(isLost(agent(), true, late)).toBe(false)
+    expect(isLost(agent(), false, LOST_AFTER_MS)).toBe(false)
+    expect(isLost(agent({ toolCalls: 1 }), false, late)).toBe(false)
+    expect(isLost(agent({ status: 'completed' }), false, late)).toBe(false)
   })
 })
 

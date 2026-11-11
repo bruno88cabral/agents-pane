@@ -14,10 +14,12 @@ import {
   countToolCall,
   endAgent,
   isLive,
+  isLost,
   labels,
   parseGit,
   projectName,
   repoName,
+  settleAgents,
   summarize,
   tasksFromTodos,
   updateTask,
@@ -53,7 +55,7 @@ const readGit = async ($: EngineInterface): Promise<GitState | undefined> => {
 
 const adopt = async ($: EngineInterface): Promise<void> => {
   const [known, now] = await Promise.all([$.agent.list(), $.clock.now()])
-  await update($, agents, list => adoptAgents(list, known, now))
+  await update($, agents, list => settleAgents(adoptAgents(list, known, now), known, now))
 }
 
 export const register: Register = (on, options) => {
@@ -154,6 +156,18 @@ export const register: Register = (on, options) => {
     return ran
   }).catch(($, e, next) => next(e))
 
+  // A stopped agent gets no SubagentStop, and the engine may drop it from its
+  // list before the next tick sees it as killed.
+  on('tool.call', { tool: 'TaskStop' }, async ($, e, next) => {
+    const ran = await next(e)
+    const id = (ran.result as { task_id?: string } | undefined)?.task_id ?? e.task_id ?? e.shell_id
+    if (id && !ran.isError && ran.deny === undefined) {
+      const now = await $.clock.now()
+      await update($, agents, list => endAgent(list, id, 'failed', now))
+    }
+    return ran
+  }).catch(($, e, next) => next(e))
+
   on('classic.SubagentStop', async ($, e, next) => {
     const now = await $.clock.now()
     await update($, agents, list => endAgent(list, e.agent_id, 'completed', now))
@@ -247,8 +261,13 @@ export const register: Register = (on, options) => {
     // longer lists has ended unseen or runs where the list does not reach (a
     // workflow's): still live here, but with nothing to say it is working,
     // so it stays still. It is not idle: idle is only what the engine says.
+    // One that is not listed and never called a tool is lost after a while:
+    // it ended unseen, and shows as failed with no time of its own.
     const liveById = new Map(live.map(a => [a.id, a.status]))
     const rows = history.map(a => {
+      if (isLost(a, liveById.has(a.id), now)) {
+        return { ...a, status: 'failed' as LiveStatus, endedAt: a.startedAt }
+      }
       const status: LiveStatus = a.status === 'running' ? (liveById.get(a.id) ?? 'waiting') : a.status
       return { ...a, status }
     })

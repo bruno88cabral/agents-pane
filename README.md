@@ -109,8 +109,9 @@ The plugin is a Claude Code hooks module. It listens to a few engine events and 
 | `tool.call` inside an agent                            | Counts one tool call for that agent                                           |
 | `SubagentStop`                                         | Marks the agent as done and stops its clock                                   |
 | `tool.call` on `Agent`                                 | Marks the agent as failed when the call errors                                |
+| `tool.call` on `TaskStop`                              | Marks the stopped agent as failed and stops its clock                         |
 | `TaskCreate` / `TaskUpdate` / `TaskList` / `TodoWrite` | Keeps the orchestration task list in sync                                     |
-| `$.agent.list()` every second                          | Shows finer live states (waiting, idle) and adopts agents it has not seen yet |
+| `$.agent.list()` every second                          | Shows finer live states (waiting, idle), adopts agents it has not seen yet and keeps the ends it reports |
 | `$.session.repo()` / `$.session.usage()`               | Fill the header with the repo name, the context fill, the limits and the session |
 | `git status` / `git rev-parse` every 5 seconds         | Fill the branch line                                                          |
 | `session.measure`                                      | Redraws the pane as soon as the context fill moves                            |
