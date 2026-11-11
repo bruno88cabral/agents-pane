@@ -40,7 +40,11 @@ The same layout in text, during an orchestration grouped by ticket:
 
 ## Features
 
-- **Repo and context**: the name of the GitHub repo in big letters, three rows tall (the same in every worktree), and under it how full the session's context window is; the bar is green, turns yellow at 70% and red at 85%. The agents bar shows done in green, running in the accent, failed in red and idle (done with its turn, kept alive with its context) dimmed. Under the bar, one row per state counts the agents: running, waiting (`◐`, held on background work they own), idle, failed, success, and done (failed and success together).
+- **Repo and context**: the name of the GitHub repo in big letters, three rows tall (the same in every worktree), and under it how full the session's context window is; the bar is green, turns yellow at 60% and red at 85%. The agents bar shows done in green, running in the accent, failed in red and idle (done with its turn, kept alive with its context) dimmed. Under the bar, one row per state counts the agents: running, waiting (`◐`, held on background work they own), idle, failed, success, and done (failed and success together).
+- **Matrix of tickets by stage**: when agent descriptions name tickets, the pane draws a matrix instead of the list: one row per ticket, one column per stage, taken from the start of the description (`Refinar N4 MYK-1154` and `Fatiar N4 MYK-1154` give the columns `Refinar` and `Fatiar`, with no setup). A cell shows its state and, once done, its time and tool calls: `✓ 5m41 · 28t`; `✓ 6m51 ↻1` when it recovered on a retry (the attempts of one stage are one cell, not one row each); `● 2m08` running; `◐ aguardando · 4m` waiting for you; `✗ falha · r` an open failure; `· na fila` for a stage the ticket has not reached. Tickets that need you come first. A total per ticket sums the cells that finished. Agents with no ticket in the description are listed under the matrix. `v` goes to the list and back.
+- **One-line header and a state strip**: in the matrix view the header is a line with the name, branch, mini meters for context, 5h and week (green below 60%, yellow from 60%, red from 85%) and the session. A strip above it is green when nothing needs you, yellow when an agent waits and red when a limit is over 85%, with a line saying which and when it resets. Under it, one block per ticket, in the color of its state, and `3 of 5 tickets ready`.
+- **Attention banner**: shown only while an agent waits. It names the ticket and the agent, what it did last (`stopped after Bash`) and for how long it has waited. The engine does not say why an agent waits, so the last tool it called is the closest thing there is.
+- **Keys**: with the keyboard in the pane (ctrl+x tab), the arrows move between cells, `⏎` opens the agent in the main view, `r` copies a retry request for the failed cell under the ring (or for the first open failure), and `v` switches between the matrix and the list. With no cell under the ring, `⏎` opens the most urgent: the agent waiting longest, else the first open failure.
 - **Branch line**: the branch you are on (or the short hash when HEAD is detached), changed files in yellow, commits ahead (`↑`) and behind (`↓`) the upstream, and `worktree` when the session runs in one. Handy because Claude Code only shows the branch when the conversation starts.
 - **Usage limits and session**: the 5-hour and weekly limits with their reset time and a bar in the context colors, and how long the session has run, with its cost in dollars when you pay per API call. Rows with nothing to show are left out.
 - **Stats table**: context, limits, agents and (when Claude keeps a task list with `TaskCreate` / `TaskUpdate` / `TodoWrite`) tasks, each with its value, a bar of the same width and a percentage, in fixed columns.
@@ -113,6 +117,9 @@ The plugin is a Claude Code hooks module. It listens to a few engine events and 
 | `TaskCreate` / `TaskUpdate` / `TaskList` / `TodoWrite` | Keeps the orchestration task list in sync                                     |
 | `$.agent.list()` every second                          | Shows finer live states (waiting, idle), adopts agents it has not seen yet and keeps the ends it reports |
 | `$.session.repo()` / `$.session.usage()`               | Fill the header with the repo name, the context fill, the limits and the session |
+| `tool.call` of an agent (its tool)                     | Remembers the last tool it called, to say what a waiting agent stopped at     |
+| `ui.focus` on the pane                                 | Remembers which cell the ring is on, for `r`                                  |
+| `$.ui.view({ agentId })` on a press                    | Opens the agent's transcript in the main view                                 |
 | `git status` / `git rev-parse` every 5 seconds         | Fill the branch line                                                          |
 | `session.measure`                                      | Redraws the pane as soon as the context fill moves                            |
 
@@ -127,17 +134,22 @@ The plugin never changes what Claude does. Every hook passes the event on untouc
 hooks/
   core.ts             harness-agnostic model, reducers, text helpers and labels
   layout.ts           the pane as lines of colored segments, pure
+  matrix.ts           tickets by stage: parse a description, merge attempts, cell states, pure
+  matrix-layout.ts    the matrix view as lines of segments, pure
   register.tsx        Claude Code adapter: events in, painted lines out
   *.test.ts(x)        tests for both
 types/
   index.d.ts          data model and state contract
 ```
 
-`core.ts` and `layout.ts` do not know about Claude Code. `layout({ width, height, context, agents, ... })` returns the pane as lines, each a list of segments with a color role (accent, ok, warn, error, dim), and `plain()` turns them into strings, so the whole layout is tested without a terminal. `register.tsx` only turns Claude Code events into calls to the core and paints those lines. This split is on purpose: support for other agent harnesses would be a new adapter on top of the same core.
+`core.ts`, `matrix.ts`, `layout.ts` and `matrix-layout.ts` do not know about Claude Code. `layout({ width, height, context, agents, ... })` returns the pane as lines, each a list of segments with a color role (accent, ok, warn, error, dim), and `plain()` turns them into strings, so the whole layout is tested without a terminal. `register.tsx` only turns Claude Code events into calls to the core and paints those lines. This split is on purpose: support for other agent harnesses would be a new adapter on top of the same core.
 
 ## Known limits
 
 - **Agents adopted late** (started before the plugin loaded) show elapsed time from the moment the pane saw them, and their tool calls count from zero. The engine does not expose the real start time.
+- **Why an agent waits** is not in the engine's agent list: it says only that the agent is held (on background work it owns, a plan's approval or an Agent call). The banner shows the last tool it called, which lives in memory and is lost on a reload.
+- **Retry copies a request, it does not relaunch**: an agent a plugin starts answers to the plugin, not to the orchestrator that asked for the work, so `r` puts a ready request on the clipboard for you to paste to the orchestrator.
+- **The matrix needs room**: each stage takes 16 columns or more. Narrower than that, or with no ticket in any description, the list stays.
 - **The sparkline starts over on a reload**: the per-minute counts live in memory, not in the session state.
 - **Organizations with managed settings**: there, `SubagentStop` hooks only run for plugins the organization lists. Agents still show, but may stay as running until the live list reports them as done.
 - Hooks modules are an **early access** API in Claude Code, so a future release may break something. Issues are welcome.
@@ -157,7 +169,7 @@ For type checking, run `claude --plugin-dir .` once so Claude Code writes its ty
 
 ## Roadmap
 
-- [ ] Open an agent's transcript from its row
+- [x] Open an agent's transcript from its cell (the matrix view; the list's rows do not open yet)
 - [ ] Token usage per agent
 - [ ] Donut chart on the desktop surface
 - [ ] Adapters for other agent harnesses (Codex CLI, OpenCode, ...)
