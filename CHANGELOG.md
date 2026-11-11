@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.12.0
+
+- The agents counts moved from beside the bar to under it, one row per state with the counts lined up: running, waiting, idle, failed, success, and done (failed and success together). Every state shows, zero or not, so the rows stay in place. In pt-BR: rodando, aguardando, ociosos, falhos, com sucesso, finalizados.
+- The rows stay together under the bar, with no blank line between them, even from 40 rows.
+- The full header is 6 rows taller, so the pane turns compact under 18 rows (was 12), and on the terminal when the list would get under 5 rows, as before. Compact mode keeps its one line.
+
 ## 0.11.0
 
 - The agents row counts waiting agents apart: `● 0 running  ◐ 1 waiting`, on the full header and in compact mode (`aguardando` in pt-BR). A waiting agent is held, on background work it owns (a test suite, a visual check), a plan's approval or an Agent call, and shows the still `◐` in its row. It stays in the accent part of the bar, with the running ones.
