@@ -1,9 +1,9 @@
 // Claude Code adapter for agents-pane.
 //
 // This file turns Claude Code events into calls to the core reducers and
-// paints the lines ./layout.ts lays out with Claude Code's UI elements. The
-// reducers and labels live in ./core.ts and the layout in ./layout.ts; neither
-// knows anything about Claude Code.
+// paints the lines ./layout.ts and ./matrix-layout.ts lay out with Claude
+// Code's UI elements. The reducers and labels live in ./core.ts, the layouts
+// in those two files; none of them knows anything about Claude Code.
 
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
@@ -28,7 +28,9 @@ import {
 } from './core'
 import type { AgentRow, GitState, LiveStatus, TaskRow, TaskStatus } from './core'
 import { layout, listWindow, mark, rates, scrollList } from './layout'
-import type { Line, ListWindow, Marks, Tone } from './layout'
+import type { LayoutInput, Line, ListWindow, Marks, Segment, Tone } from './layout'
+import { matrixLayout } from './matrix-layout'
+import type { MatrixLayout } from './matrix-layout'
 
 const PANE = 'agents-pane'
 const FRAME_MS = 200
@@ -54,8 +56,14 @@ const readGit = async ($: EngineInterface): Promise<GitState | undefined> => {
   return status.exitCode === 0 ? parseGit(status.stdout, rev.stdout) : undefined
 }
 
-const adopt = async ($: EngineInterface): Promise<void> => {
+const adopt = async ($: EngineInterface, waitingSince: Map<string, number>): Promise<void> => {
   const [known, now] = await Promise.all([$.agent.list(), $.clock.now()])
+  // When each agent was first listed as waiting, for "waiting for 4m". Taken
+  // here, on the tick, so a pane opened late still knows.
+  for (const a of known) {
+    if (a.status !== 'waiting') waitingSince.delete(a.id)
+    else if (!waitingSince.has(a.id)) waitingSince.set(a.id, now)
+  }
   await update($, agents, list => settleAgents(adoptAgents(list, known, now), known, now))
 }
 
@@ -76,6 +84,20 @@ export const register: Register = (on, options) => {
   // Counts up only while the terminal has a running agent to animate.
   let frame = 0
   let animating = false
+  // In memory only, like the marks: when each agent began to wait and the last
+  // tool each called, which is all the engine lets us say of why it waits.
+  const waitingSince = new Map<string, number>()
+  const lastTool = new Map<string, string>()
+  // The view the person picked with `v`. None until they do: the matrix shows
+  // whenever it can be drawn.
+  let picked: 'matrix' | 'list' | undefined
+  // The matrix as drawn last: what each of its keys opens. Undefined while the
+  // list is drawn.
+  let matrix: MatrixLayout | undefined
+  // Whether the matrix could be drawn at the last drawing, drawn or not.
+  let matrixFits = false
+  // The element the focus ring is on, for `r` to know which cell.
+  let focused: string | undefined
 
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'agents-pane', description: t.commandDescription })
@@ -86,7 +108,7 @@ export const register: Register = (on, options) => {
     if (!ticking) {
       ticking = true
       $.clock.every(1000, () => {
-        void adopt($)
+        void adopt($, waitingSince)
         $.ui.invalidate('ui.render')
       })
       $.clock.every(FRAME_MS, () => {
@@ -98,7 +120,7 @@ export const register: Register = (on, options) => {
         git = await readGit($).catch(() => undefined)
       })
     }
-    void adopt($)
+    void adopt($, waitingSince)
     void readGit($).then(
       g => (git = g),
       () => undefined,
@@ -141,6 +163,7 @@ export const register: Register = (on, options) => {
   on('tool.call', async ($, e, next) => {
     if (e.agentId) {
       const id = e.agentId
+      lastTool.set(id, e.tool)
       const now = await $.clock.now()
       await update($, agents, list => countToolCall(list, id, now))
     }
@@ -231,6 +254,12 @@ export const register: Register = (on, options) => {
     return next(e)
   }).catch(($, e, next) => next(e))
 
+  // The ring is on one of the cells: `r` asks to retry that one.
+  on('ui.focus', { component: 'Pane', requestId: PANE }, ($, e, next) => {
+    focused = e.plugin === 'agents-pane' ? e.element : undefined
+    return next(e)
+  }).catch(($, e, next) => next(e))
+
   // The terminal's list moves here and the engine's window stays where it is,
   // so the header never leaves the top, not even between two drawings.
   on('ui.scroll', { component: 'Pane', requestId: PANE }, ($, e, next) => {
@@ -247,7 +276,7 @@ export const register: Register = (on, options) => {
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const { Box, Text } = $.ui.resolve(e)
+    const { Box, Text, Button } = $.ui.resolve(e)
     const [history, taskList, live, now, root, repo, usage] = await Promise.all([
       read($, agents),
       read($, tasks),
@@ -275,8 +304,19 @@ export const register: Register = (on, options) => {
       const listed = liveById.get(a.id)
       const status: LiveStatus =
         listed && isLive(listed) ? listed : a.status === 'running' ? (listed ?? 'waiting') : a.status
-      return { ...a, status }
+      // Shown as waiting but not listed: nothing says it waits for anyone.
+      const unlisted = status === 'waiting' && listed === undefined
+      return {
+        ...a,
+        status,
+        ...(unlisted && { unlisted }),
+        ...(status === 'waiting' && waitingSince.has(a.id) && { waitingSince: waitingSince.get(a.id) }),
+        ...(lastTool.has(a.id) && { lastTool: lastTool.get(a.id) }),
+      }
     })
+    // Forget the agents that left the history.
+    const kept = new Set(rows.map(a => a.id))
+    for (const id of [...lastTool.keys()]) if (!kept.has(id)) lastTool.delete(id)
 
     ascii ??= (await $.env.get('AGENTS_PANE_ASCII').catch(() => undefined)) === '1'
 
@@ -300,7 +340,7 @@ export const register: Register = (on, options) => {
       (root && projectName(root)) ||
       undefined
 
-    const { header, body } = layout({
+    const input: LayoutInput = {
       width,
       height,
       terminal: onTerminal,
@@ -324,28 +364,100 @@ export const register: Register = (on, options) => {
       }),
       tasks: s.tasks,
       labels: t,
-    })
+    }
 
-    const paint = (line: Line, key: string) => (
-      <Text key={key} wrap="truncate-end">
-        {line.map((seg, i) =>
-          seg.title ? (
-            <Text key={String(i)} bold size="title" color={COLOR.accent}>
-              {seg.text}
-            </Text>
-          ) : (
-            <Text
-              key={String(i)}
-              bold={seg.bold}
-              dimColor={seg.tone === 'dim'}
-              color={seg.color ?? (seg.tone && seg.tone !== 'dim' ? COLOR[seg.tone] : undefined)}
-            >
-              {seg.text || ' '}
-            </Text>
-          ),
-        )}
-      </Text>
-    )
+    // The matrix shows whenever tickets can be laid out in the room there is,
+    // unless the person asked for the list.
+    const fitted = matrixLayout(input)
+    matrixFits = fitted !== undefined
+    matrix = picked === 'list' ? undefined : fitted
+    const { header, body } = matrix ?? layout({ ...input, canMatrix: matrixFits })
+
+    // What a press of a key does. They run on the person's own input, which
+    // is what lets `$.ui.view` open an agent.
+    const open = async (agentId: string): Promise<void> => {
+      const { deny } = await $.ui.view({ agentId })
+      if (deny) $.ui.toast(t.matrix.cannotOpen(deny))
+    }
+    const press = async (key: string): Promise<void> => {
+      if (key === 'view') {
+        picked = matrix ? 'list' : 'matrix'
+        $.ui.invalidate('ui.render')
+        return
+      }
+      if (key === 'retry') {
+        // A plugin's agent answers to the plugin, not to the orchestrator that
+        // asked for the work, so a relaunched one would be lost to it: the
+        // request is copied, and the orchestrator runs it again.
+        const cell = focused ? matrix?.targets[focused] : undefined
+        const target = cell?.state === 'failed' ? cell : matrix?.retry
+        if (!target) return
+        const { isCopied } = await $.ui.copy({
+          text: t.matrix.retryRequest(target.description),
+          surface: e.surface,
+        })
+        $.ui.toast(isCopied ? t.matrix.copied : t.matrix.notCopied)
+        return
+      }
+      const target = key === 'urgent' ? matrix?.urgent : matrix?.targets[key]
+      if (target) await open(target.agentId)
+    }
+
+    const paintSeg = (seg: Segment, i: number) =>
+      seg.title ? (
+        <Text key={String(i)} bold size="title" color={COLOR.accent}>
+          {seg.text}
+        </Text>
+      ) : (
+        <Text
+          key={String(i)}
+          bold={seg.bold}
+          dimColor={seg.tone === 'dim'}
+          color={seg.color ?? (seg.tone && seg.tone !== 'dim' ? COLOR[seg.tone] : undefined)}
+        >
+          {seg.text || ' '}
+        </Text>
+      )
+
+    const paint = (line: Line, key: string) => {
+      if (!line.some(seg => seg.press)) {
+        return (
+          <Text key={key} wrap="truncate-end">
+            {line.map(paintSeg)}
+          </Text>
+        )
+      }
+      // Segments that share a key are one button; the text between them stays text.
+      const runs: Segment[][] = []
+      for (const seg of line) {
+        const last = runs[runs.length - 1]
+        if (last && last[0]!.press === seg.press) last.push(seg)
+        else runs.push([seg])
+      }
+      return (
+        <Box key={key} flexDirection="row">
+          {runs.map((run, i) => {
+            const id = run[0]!.press
+            const hotkey = run[0]!.hotkey
+            return id ? (
+              <Button
+                key={id}
+                plain
+                onPress={() => press(id)}
+                {...(hotkey && { hotkey })}
+                {...(id === 'urgent' && { autoFocus: true as const })}
+              >
+                {run.map(paintSeg)}
+              </Button>
+            ) : (
+              <Text key={`t${i}`} wrap="truncate-end">
+                {run.map(paintSeg)}
+              </Text>
+            )
+          })}
+        </Box>
+      )
+    }
 
     const headerRows = (
       <Box flexDirection="column" rowGap="sm">

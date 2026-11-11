@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.13.0
+
+- **Matrix view**: agents whose descriptions name a ticket are drawn as a matrix of tickets (rows) by stages (columns), the stages read from the start of the description (`Refinar`, `Fatiar`, no setup). A cell is `✓ 5m41 · 28t`, `✓ 6m51 ↻1 · 28t` when it recovered on a retry, `● 2m08` running, `◐ aguardando · 4m` waiting, `✗ falha · r` open failure or `· na fila` when the ticket has not reached that stage. The attempts of one stage are one cell, so the old `✗ 0t 0s` rows are gone. Tickets that need you come first; each row has a total. Agents with no ticket are listed under the matrix. The matrix needs 16 columns per stage; narrower, or with no ticket anywhere, the list stays.
+- **One-line header**: name, branch, mini meters for context, 5h and week, and the session. The meters give up their bars, then the session time, when the pane is narrow.
+- **State strip**: a line above the header, green when nothing needs you, yellow while an agent waits, red when a limit is over 85%, with `limite 5h em 91% · reseta em 22m`.
+- **Bar of tickets**: one block per ticket, in the color of its state (ready, waiting, failed, running), and `3 de 5 tickets prontos`.
+- **Attention banner**, only while an agent waits: the ticket, the agent, what it did last (`parado depois de Bash`) and how long it has waited. The engine does not say why an agent waits; the last tool it called is the closest thing it gives.
+- **Keys** with the keyboard in the pane: the arrows move between cells, `⏎` opens the agent in the main view (with no cell under the ring, the agent waiting longest, else the first open failure), `r` copies a retry request for the failed cell, `v` switches between the matrix and the list. The list's separator offers `v` when the matrix can be drawn.
+- Retry copies a request to paste to the orchestrator instead of relaunching: an agent a plugin starts answers to the plugin, not to the orchestrator that asked for the work.
+- The context and limit colors change at 60% (was 70%): green below 60%, yellow from 60%, red from 85%.
+- An agent the engine does not list is no longer taken as waiting for you: it stays a still `◐` in its cell and never makes the banner or the yellow strip.
+
 ## 0.12.0
 
 - The agents counts moved from beside the bar to under it, one row per state with the counts lined up: running, waiting, idle, failed, success, and done (failed and success together). Every state shows, zero or not, so the rows stay in place. In pt-BR: rodando, aguardando, ociosos, falhos, com sucesso, finalizados.

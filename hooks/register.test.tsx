@@ -381,3 +381,164 @@ test('the branch, the usage limits and the session fill the header', async ($, o
   expect(await ui.find({ type: 'Text', text: /session .* \$3\.42/ })).toBeDefined()
   await ui.unmount()
 })
+
+// ---------- the matrix ----------
+
+const TICKETED_AGENTS = [
+  { id: 'a1', type: 'general-purpose', description: 'Refinar N1 MYK-1151', background: true, status: 'completed', startedAt: 0, endedAt: 60_000, toolCalls: 20 },
+  { id: 'a2', type: 'general-purpose', description: 'Refinar N6 MYK-1156', background: true, status: 'running', startedAt: 70_000, toolCalls: 12 },
+  { id: 'a3', type: 'general-purpose', description: 'Fatiar N7 MYK-1157', background: true, status: 'failed', startedAt: 80_000, endedAt: 83_000, toolCalls: 6 },
+  { id: 'a4', type: 'general-purpose', description: 'Implement Task 9: N5b sky card', background: true, status: 'completed', startedAt: 90_000, endedAt: 99_000, toolCalls: 160 },
+]
+const WAITING_A2 = { id: 'a2', description: 'Refinar N6 MYK-1156', type: 'general-purpose', status: 'waiting' }
+
+/** A pane over ticketed agents, `a2` waiting for the person. */
+const ticketed = (on: Parameters<typeof mock.clock>[0], list: unknown[] = [WAITING_A2]) => {
+  mock.clock(on, { now: 100_000 })
+  on('agent.list', () => ({ value: list as never }))
+  on('state.get', (_, e) => ({
+    value: { value: e.key === 'agents' ? TICKETED_AGENTS : SEEDED[e.key], version: 1 },
+  }))
+}
+
+const keysOf = async (ui: { findAll: (q: { type: string }) => Promise<Array<{ key: string | undefined }>> }) =>
+  (await ui.findAll({ type: 'Button' })).map(b => b.key)
+
+test('agents that name tickets are drawn as a matrix, every cell with an agent a button', async ($, on) => {
+  ticketed(on)
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /ticket +1 · Refinar +2 · Fatiar +total/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /1 agent waiting for you/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /MYK-1156 · Refinar N6 · on background work/ })).toBeDefined()
+  expect(await keysOf(ui)).toEqual([
+    'urgent',
+    'retry',
+    'view',
+    'cell:MYK-1156:refinar',
+    'cell:MYK-1157:fatiar',
+    'cell:MYK-1151:refinar',
+  ])
+  // The agent with no ticket is still listed, under its own title.
+  expect(await ui.find({ type: 'Text', text: /no ticket/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Implement Task 9: N5b sky card/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('pressing a cell, or ⏎ on the banner, opens the agent in the main view', async ($, on) => {
+  ticketed(on)
+  const opened: Array<string | undefined> = []
+  on('ui.view', (_, e) => {
+    opened.push(e.agentId)
+    return { value: {} }
+  })
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.press({ key: 'cell:MYK-1151:refinar' })
+  await ui.press({ key: 'urgent' })
+  await ui.press({ key: 'cell:MYK-1157:fatiar' })
+  expect(opened).toEqual(['a1', 'a2', 'a3'])
+  await ui.unmount()
+})
+
+test('an agent the engine will not show says why in a toast', async ($, on) => {
+  ticketed(on)
+  on('ui.view', () => ({ value: { deny: 'no agent holds that id' } }))
+  const toasts: string[] = []
+  on('ui.toast', (_, e) => {
+    toasts.push(e.text)
+    return { value: undefined }
+  })
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.press({ key: 'cell:MYK-1151:refinar' })
+  expect(toasts).toEqual(['Cannot open the agent: no agent holds that id'])
+  await ui.unmount()
+})
+
+test('v goes to the list and back, and the list offers the matrix', async ($, on) => {
+  ticketed(on)
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /ticket +1 · Refinar/ })).toBeDefined()
+  expect((await ui.findAll({ type: 'Button', key: 'view' }))[0]?.text).toMatch(/list/)
+
+  await ui.press({ key: 'view' })
+  // The list: the agents grouped by ticket, the separator offering the matrix.
+  expect(await ui.find({ type: 'Text', text: /ticket +1 · Refinar/ })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /agents +\d \/ 4 done/ })).toBeDefined()
+  expect((await ui.findAll({ type: 'Button', key: 'view' }))[0]?.text).toMatch(/matrix/)
+  expect(await keysOf(ui)).toEqual(['view'])
+
+  await ui.press({ key: 'view' })
+  expect(await ui.find({ type: 'Text', text: /ticket +1 · Refinar/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('r copies a retry request for the cell under the ring, else for the first open failure', async ($, on) => {
+  ticketed(on)
+  const copied: string[] = []
+  on('ui.copy', (_, e) => {
+    copied.push(e.text)
+    return { value: { isCopied: true } }
+  })
+  const toasts: string[] = []
+  on('ui.toast', (_, e) => {
+    toasts.push(e.text)
+    return { value: undefined }
+  })
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.press({ key: 'retry' })
+  expect(copied).toEqual(['The agent "Fatiar N7 MYK-1157" failed. Run it again with the same prompt as before.'])
+  expect(toasts).toEqual(['Retry request copied: paste it to the orchestrator'])
+  await ui.unmount()
+})
+
+test('a copy the surface refuses is said so', async ($, on) => {
+  ticketed(on)
+  on('ui.copy', () => ({ value: { isCopied: false, reason: 'no-clipboard' } }))
+  const toasts: string[] = []
+  on('ui.toast', (_, e) => {
+    toasts.push(e.text)
+    return { value: undefined }
+  })
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.press({ key: 'retry' })
+  expect(toasts).toEqual(['Could not copy the retry request'])
+  await ui.unmount()
+})
+
+test('why it waits is the last tool the agent called', async ($, on) => {
+  ticketed(on)
+  on('tool.call', { tool: 'Bash' }, () => ({ result: { stdout: '', stderr: '' } }))
+  await $.tool.call({ tool: 'Bash', command: 'sleep 600', agentId: 'a2' })
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /MYK-1156 · Refinar N6 · stopped after Bash/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('an agent the engine does not list is not a waiting agent: no banner, a still cell', async ($, on) => {
+  ticketed(on, [])
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /agents? waiting for you/ })).toBeUndefined()
+  const cell = (await ui.findAll({ type: 'Button', key: 'cell:MYK-1156:refinar' }))[0]
+  expect(cell?.text).toMatch(/^◐ 30s · 12t/)
+  // With nothing waiting, ⏎ goes to the open failure, from the rule.
+  const urgent = (await ui.findAll({ type: 'Button', key: 'urgent' }))[0]
+  expect(urgent?.text).toBe('⏎ open')
+  await ui.unmount()
+})
+
+test('with no agent naming a ticket the list stays, and has no key to the matrix', async ($, on) => {
+  mock.clock(on, { now: 100_000 })
+  on('agent.list', () => ({ value: [] }))
+  on('state.get', (_, e) => ({ value: { value: SEEDED[e.key], version: 1 } }))
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await keysOf(ui)).toEqual([])
+  await ui.unmount()
+})
+
+test('on a pane too narrow for the stages the list stays, and `v` is not offered', async ($, on) => {
+  ticketed(on)
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal', props: { ...PANE.props, bodyColumns: 50 } })
+  expect(await ui.find({ type: 'Text', text: /ticket +1 · Refinar/ })).toBeUndefined()
+  expect(await keysOf(ui)).toEqual([])
+  await ui.unmount()
+})

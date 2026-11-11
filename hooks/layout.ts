@@ -4,14 +4,27 @@
 // Each line is a list of segments carrying a color role, so the adapter only
 // paints them and the tests read them as plain strings with `plain()`.
 
-import { barCells, bigText, elapsed, fit, isLive, resetTime, summarize, tokens } from './core'
+import { barCells, bigText, elapsed, fit, isLive, resetTime, summarize, tidy, TICKET_TOKEN, tokens } from './core'
 import type { GitState, Labels, LiveStatus } from './core'
 
 /** The color roles of the pane; no tone is the terminal's own color. */
 export type Tone = 'accent' | 'ok' | 'warn' | 'error' | 'dim'
 
-/** `color` is a raw color, over the tone. */
-export type Segment = { text: string; tone?: Tone; color?: string; bold?: boolean; title?: boolean }
+/**
+ * `color` is a raw color, over the tone. `press` makes the segment a button:
+ * its address, and what the adapter runs. Segments in a row with the same
+ * `press` are one button. `hotkey` is the key that presses it, which the
+ * surface draws before the text (`v: list`).
+ */
+export type Segment = {
+  text: string
+  tone?: Tone
+  color?: string
+  bold?: boolean
+  title?: boolean
+  press?: string
+  hotkey?: string
+}
 export type Line = Segment[]
 
 export type LayoutAgent = {
@@ -25,6 +38,12 @@ export type LayoutAgent = {
   toolCalls: number
   /** Tool calls per minute over the last intervals, oldest first. */
   rates?: readonly number[]
+  /** Not in the engine's list: nothing says what it is doing. */
+  unlisted?: boolean
+  /** When the engine first listed it as waiting. */
+  waitingSince?: number
+  /** The last tool it called, when known. */
+  lastTool?: string
 }
 
 export type LayoutInput = {
@@ -45,6 +64,8 @@ export type LayoutInput = {
   session?: { startedAt: number; usd?: number }
   agents: readonly LayoutAgent[]
   tasks?: { pending: number; active: number; done: number; total: number }
+  /** The list's separator offers `v` to go to the matrix, which can be drawn. */
+  canMatrix?: boolean
   labels: Labels
 }
 
@@ -58,7 +79,7 @@ export const NARROW_WIDTH = 40
 /** On the terminal the full header must leave this many rows for the list. */
 export const MIN_LIST = 5
 
-const GUTTER = ' '
+export const GUTTER = ' '
 const LABEL = 9
 const VALUE = 12
 const BAR = 20
@@ -68,11 +89,13 @@ const TIME = 6
 const MODE = 2
 const SPARK = 4
 const DEFAULT_TYPE = 'general-purpose'
+/** The surface draws a hotkey before the text, `v: `: this many cells. */
+const HOTKEY = 'v: '
 const TICKET = /\b([A-Z]+-\d+)\b/
 
 // ---------- pieces ----------
 
-const seg = (text: string, tone?: Tone, bold?: boolean): Segment =>
+export const seg = (text: string, tone?: Tone, bold?: boolean): Segment =>
   tone || bold ? { text, ...(tone && { tone }), ...(bold && { bold }) } : { text }
 
 export const statusGlyph = (status: LiveStatus, ascii: boolean): { text: string; tone: Tone } => {
@@ -151,17 +174,6 @@ const statRow = (
 
 type Group = { ticket?: string; subtitle: string; rows: Array<{ agent: LayoutAgent; text: string }> }
 
-const squeeze = (text: string): string => text.replace(/\s+/g, ' ').trim()
-
-/**
- * The ticket as written, with what belongs to it: the brackets around it,
- * `(MYK-12)`, and the siblings after it, `MYK-12/13` or `MYK-12, MYK-14`.
- */
-const TICKET_TOKEN = /[([]?\s*\b([A-Z]+-\d+)\b(?:\s*[/,+&]\s*(?:[A-Z]+-)?\d+\b)*\s*[)\]]?/
-
-/** Squeezed, without separators or an empty pair of brackets left at the ends. */
-const tidy = (text: string): string =>
-  squeeze(text.replace(/\(\s*\)|\[\s*\]/g, ' ')).replace(/^[\s:·–—-]+|[\s:·–—-]+$/g, '')
 
 /**
  * Agents grouped by the ticket their description names. Undefined when none
@@ -198,9 +210,9 @@ export const groupByTicket = (agents: readonly LayoutAgent[]): Group[] | undefin
 
 // ---------- rows ----------
 
-type Columns = { mode: boolean; type: number; spark: boolean; glyph: number }
+export type Columns = { mode: boolean; type: number; spark: boolean; glyph: number }
 
-const agentRow = (
+export const agentRow = (
   agent: LayoutAgent,
   text: string,
   indent: number,
@@ -242,7 +254,7 @@ const agentRow = (
   ]
 }
 
-const columnsFor = (agents: readonly LayoutAgent[], input: LayoutInput): Columns => {
+export const columnsFor = (agents: readonly LayoutAgent[], input: LayoutInput): Columns => {
   const roomy = input.width >= NARROW_WIDTH
   const types = agents.map(a => (a.type === DEFAULT_TYPE ? 0 : a.type.length))
   return {
@@ -255,7 +267,7 @@ const columnsFor = (agents: readonly LayoutAgent[], input: LayoutInput): Columns
 
 // ---------- header ----------
 
-const blank: Line = [seg('')]
+export const blank: Line = [seg('')]
 
 const title = (input: LayoutInput, compact: boolean): Line[] => {
   const name = input.name
@@ -266,11 +278,11 @@ const title = (input: LayoutInput, compact: boolean): Line[] => {
   return [[seg(GUTTER), seg(name.toUpperCase(), 'accent', true)]]
 }
 
-/** Green below 70%, yellow from 70%, red from 85%. */
-const fillTone = (pct: number | undefined): Tone | undefined => {
+/** Green below 60%, yellow from 60%, red from 85%. */
+export const fillTone = (pct: number | undefined): Tone | undefined => {
   if (pct === undefined) return undefined
   if (pct >= 85) return 'error'
-  if (pct >= 70) return 'warn'
+  if (pct >= 60) return 'warn'
   return 'ok'
 }
 
@@ -443,7 +455,15 @@ const compactStats = (input: LayoutInput): Line => {
 const separator = (input: LayoutInput): Line => {
   const dash = input.ascii ? '-' : '─'
   const head = `${dash}${dash} ${input.labels.section} `
-  return [seg(GUTTER), seg(head + dash.repeat(Math.max(0, input.width - GUTTER.length - head.length)), 'dim')]
+  const hint = input.canMatrix ? input.labels.matrix.viewMatrix : undefined
+  // The hint is drawn `v: matrix`, two cells apart from the dashes.
+  const hintWidth = hint ? 2 + HOTKEY.length + hint.length : 0
+  const rule = head + dash.repeat(Math.max(0, input.width - GUTTER.length - head.length - hintWidth))
+  return [
+    seg(GUTTER),
+    seg(rule, 'dim'),
+    ...(hint ? [seg('  '), { text: hint, tone: 'dim' as const, press: 'view', hotkey: 'v' }] : []),
+  ]
 }
 
 /** A line of a block, or lines that stay together, never spaced apart. */
@@ -587,6 +607,14 @@ export const clip = (line: Line, width: number): Line => {
   let left = width
   for (const s of line) {
     if (left <= 0) break
+    const drawn = segWidth(s)
+    // A button with a hotkey is whole or gone: a cut one would lose its key.
+    if (s.hotkey) {
+      if (drawn > left) break
+      left -= drawn
+      out.push(s)
+      continue
+    }
     const text = s.text.length > left ? s.text.slice(0, left) : s.text
     left -= text.length
     if (text) out.push({ ...s, text })
@@ -594,9 +622,12 @@ export const clip = (line: Line, width: number): Line => {
   return out.length > 0 ? out : [seg('')]
 }
 
+/** Cells a segment takes when drawn: a hotkey adds `v: ` before its text. */
+export const segWidth = (s: Segment): number => s.text.length + (s.hotkey ? s.hotkey.length + 2 : 0)
+
 /** The layout as plain text, one string per line, trailing spaces cut. */
 export const plain = ({ header, body }: Layout): string[] =>
-  [...header, ...body].map(line => line.map(s => s.text).join('').trimEnd())
+  [...header, ...body].map(line => line.map(s => (s.hotkey ? `${s.hotkey}: ${s.text}` : s.text)).join('').trimEnd())
 
 // ---------- tool-call rate samples ----------
 

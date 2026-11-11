@@ -286,14 +286,14 @@ describe('rules', () => {
     expect(lines[ctx + 2]).toContain('agents')
   })
 
-  test('context is green below 70%, yellow from 70% and red from 85%', async () => {
+  test('context is green below 60%, yellow from 60% and red from 85%', async () => {
     const row = (percent: number) =>
       layout({ ...base, context: { tokens: 1, window: 1, percent } }).header.find(l =>
         l.some(s => s.text.includes('context')),
       )!
     const tones = (percent: number) => [...new Set(row(percent).map(s => s.tone).filter(t => t && t !== 'dim'))]
-    expect(tones(69)).toEqual(['ok'])
-    expect(tones(70)).toEqual(['warn'])
+    expect(tones(59)).toEqual(['ok'])
+    expect(tones(60)).toEqual(['warn'])
     expect(tones(84)).toEqual(['warn'])
     expect(row(85).filter(s => s.tone === 'error').map(s => s.text)).toEqual(['       1 / 1', '█████████████████', '  85%'])
   })
@@ -338,6 +338,17 @@ describe('rules', () => {
     expect(plain({ header: header.slice(at + 1, at + 7), body: [] })).toEqual(breakdown({ running: 1, waiting: 1, success: 5 }))
     expect(header[at]!.filter(s => /█/.test(s.text)).map(s => s.tone)).toEqual(['ok', 'accent'])
     expect(plain(layout({ ...input, height: 10 }))[1]).toBe(' ctx 58% · agents 5/7 · ● 1 running · ◐ 1 waiting')
+  })
+
+  test('the separator offers `v` to go to the matrix, when it can be drawn', async () => {
+    const sep = (over: Partial<LayoutInput> = {}) =>
+      plain(layout({ ...base, ...over })).find(l => l.startsWith(' ── agents'))!
+    expect(sep()).not.toContain('v:')
+    const withHint = layout({ ...base, canMatrix: true })
+    const line = withHint.header.find(l => l.some(s => s.press === 'view'))!
+    expect(line.find(s => s.press === 'view')).toEqual({ text: 'matrix', tone: 'dim', press: 'view', hotkey: 'v' })
+    expect(sep({ canMatrix: true })).toMatch(/ ── agents ─+  v: matrix$/)
+    expect(sep({ canMatrix: true })).toHaveLength(base.width)
   })
 
   test('pt-BR calls them ociosos', async () => {
@@ -640,13 +651,14 @@ describe('branch, limits and session', () => {
     expect(lines.find(l => l.includes('limit 5h'))).toBe(" limit 5h               ███░░░░░░░  34%")
   })
 
-  test('limits take the context colors: green, yellow from 70%, red from 85%', async () => {
+  test('limits take the context colors: green, yellow from 60%, red from 85%', async () => {
     const tones = (percent: number) =>
       layout({ ...FULL, limits: [{ kind: 'five_hour', percent }] }).header
         .find(l => l.some(s => s.text.includes('limit 5h')))!
         .filter(s => /█|%/.test(s.text)).map(s => s.tone)
     expect(tones(34)).toEqual(['ok', 'ok'])
-    expect(tones(70)).toEqual(['warn', 'warn'])
+    expect(tones(59)).toEqual(['ok', 'ok'])
+    expect(tones(60)).toEqual(['warn', 'warn'])
     expect(tones(85)).toEqual(['error', 'error'])
   })
 

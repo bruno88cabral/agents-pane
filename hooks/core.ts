@@ -213,6 +213,27 @@ export const barCells = (values: readonly number[], width: number): number[] => 
 
 // ---------- text ----------
 
+export const squeeze = (text: string): string => text.replace(/\s+/g, ' ').trim()
+
+/**
+ * The ticket as written, with what belongs to it: the brackets around it,
+ * `(MYK-12)`, and the siblings after it, `MYK-12/13` or `MYK-12, MYK-14`.
+ */
+export const TICKET_TOKEN = /[([]?\s*\b([A-Z]+-\d+)\b(?:\s*[/,+&]\s*(?:[A-Z]+-)?\d+\b)*\s*[)\]]?/
+
+/** Squeezed, without separators or an empty pair of brackets left at the ends. */
+export const tidy = (text: string): string =>
+  squeeze(text.replace(/\(\s*\)|\[\s*\]/g, ' ')).replace(/^[\s:·–—-]+|[\s:·–—-]+$/g, '')
+
+/** A span the short way: 45s, 4m, 2h05m. */
+export const age = (from: number, to: number): string => {
+  const s = Math.max(0, Math.round((to - from) / 1000))
+  if (s < 60) return `${s}s`
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m}m`
+  return `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}m`
+}
+
 export const elapsed = (from: number, to: number): string => {
   const s = Math.max(0, Math.round((to - from) / 1000))
   if (s < 60) return `${s}s`
@@ -343,7 +364,44 @@ export const resetTime = (at: number, now: number, weekdays: readonly string[]):
 
 export type Language = 'en' | 'pt-BR'
 
+/** The words of the ticket-by-stage matrix view. */
+export type MatrixLabels = {
+  ticket: string
+  total: string
+  /** The column title: its place and the stage's name. */
+  stage: (n: number, name: string) => string
+  weekShort: string
+  ticketsReady: (done: number, total: number) => string
+  /** `1 agent waiting for you`, `3 agents waiting for you`. */
+  attention: (n: number) => string
+  /** Why it waits, from the last tool it called, when that is known. */
+  reason: (tool?: string) => string
+  ago: (span: string) => string
+  open: string
+  waiting: string
+  failed: string
+  queued: string
+  idle: string
+  move: string
+  retry: string
+  viewList: string
+  viewMatrix: string
+  noTicket: string
+  limitAlert: (name: string, percent: number, resetsIn?: string) => string
+  legendOk: string
+  legendRecovered: string
+  legendRunning: string
+  legendWaiting: string
+  legendFailed: string
+  legendQueued: string
+  copied: string
+  notCopied: string
+  cannotOpen: (why: string) => string
+  retryRequest: (description: string) => string
+}
+
 export type Labels = {
+  matrix: MatrixLabels
   title: string
   commandDescription: string
   agents: string
@@ -381,6 +439,39 @@ export type Labels = {
 
 const LABELS: Record<Language, Labels> = {
   en: {
+    matrix: {
+      ticket: 'ticket',
+      total: 'total',
+      stage: (n, name) => `${n} · ${name}`,
+      weekShort: 'wk',
+      ticketsReady: (done, total) => `${done} of ${total} tickets ready`,
+      attention: n => `${n} ${n === 1 ? 'agent' : 'agents'} waiting for you`,
+      reason: tool => (tool ? `stopped after ${tool}` : 'on background work'),
+      ago: span => `${span} ago`,
+      open: 'open',
+      waiting: 'waiting',
+      failed: 'failed',
+      queued: 'queued',
+      idle: 'idle',
+      move: 'move',
+      retry: 'retry',
+      viewList: 'list',
+      viewMatrix: 'matrix',
+      noTicket: 'no ticket',
+      limitAlert: (name, percent, resetsIn) =>
+        `${name} limit at ${percent}%${resetsIn ? ` · resets in ${resetsIn}` : ''} · hold new agents`,
+      legendOk: 'ok',
+      legendRecovered: 'recovered on retry',
+      legendRunning: 'running',
+      legendWaiting: 'waiting for you',
+      legendFailed: 'open failure',
+      legendQueued: 'queued',
+      copied: 'Retry request copied: paste it to the orchestrator',
+      notCopied: 'Could not copy the retry request',
+      cannotOpen: why => `Cannot open the agent: ${why}`,
+      retryRequest: description =>
+        `The agent "${description}" failed. Run it again with the same prompt as before.`,
+    },
     title: 'Agents',
     commandDescription: 'Open the pane with the agents of this session and their status',
     agents: 'Agents',
@@ -415,6 +506,39 @@ const LABELS: Record<Language, Labels> = {
     opened: (running, total) => `Agents pane open: ${running} running, ${total} in this session.`,
   },
   'pt-BR': {
+    matrix: {
+      ticket: 'ticket',
+      total: 'total',
+      stage: (n, name) => `${n} · ${name}`,
+      weekShort: 'sem',
+      ticketsReady: (done, total) => `${done} de ${total} tickets prontos`,
+      attention: n => `${n} ${n === 1 ? 'agente aguardando' : 'agentes aguardando'} você`,
+      reason: tool => (tool ? `parado depois de ${tool}` : 'em trabalho em background'),
+      ago: span => `há ${span}`,
+      open: 'abrir',
+      waiting: 'aguardando',
+      failed: 'falha',
+      queued: 'na fila',
+      idle: 'ocioso',
+      move: 'mover',
+      retry: 'retry',
+      viewList: 'lista',
+      viewMatrix: 'matriz',
+      noTicket: 'sem ticket',
+      limitAlert: (name, percent, resetsIn) =>
+        `limite ${name} em ${percent}%${resetsIn ? ` · reseta em ${resetsIn}` : ''} · segure novos agentes`,
+      legendOk: 'ok',
+      legendRecovered: 'recuperou no retry',
+      legendRunning: 'rodando',
+      legendWaiting: 'aguardando você',
+      legendFailed: 'falha aberta',
+      legendQueued: 'na fila',
+      copied: 'Pedido de retry copiado: cole no orquestrador',
+      notCopied: 'Não deu para copiar o pedido de retry',
+      cannotOpen: why => `Não deu para abrir o agente: ${why}`,
+      retryRequest: description =>
+        `O agente "${description}" falhou. Rode de novo com o mesmo prompt de antes.`,
+    },
     title: 'Subagentes',
     commandDescription: 'Abre o painel com os subagentes desta sessão e o status de cada um',
     agents: 'Agentes',
