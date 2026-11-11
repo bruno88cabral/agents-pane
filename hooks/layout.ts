@@ -361,7 +361,7 @@ const activity = (input: LayoutInput): Line[] => {
   const fillWidth = barWidthFor(input)
   const lines: Line[] = []
 
-  const { running, idle, done, failed } = summarize(input.agents, []).agents
+  const { running, waiting, idle, done, failed } = summarize(input.agents, []).agents
   const agents = input.agents
   const dot = input.ascii ? '*' : '●'
   lines.push(
@@ -373,7 +373,7 @@ const activity = (input: LayoutInput): Line[] => {
         [
           { value: done, tone: 'ok' },
           { value: failed, tone: 'error' },
-          { value: running, tone: 'accent' },
+          { value: running + waiting, tone: 'accent' },
           { value: idle, tone: 'dim' },
         ],
         agents.length,
@@ -384,6 +384,7 @@ const activity = (input: LayoutInput): Line[] => {
       undefined,
       [
         seg(`   ${dot} ${running} ${t.running}`, 'accent'),
+        ...(waiting > 0 ? [seg(`  ${input.ascii ? '..' : '◐'} ${waiting} ${t.waiting}`, 'accent')] : []),
         ...(failed > 0 ? [seg(`  ${input.ascii ? 'x' : '✗'} ${failed} ${t.failed}`, 'error')] : []),
         ...(idle > 0 ? [seg(`  ${input.ascii ? '-' : '○'} ${idle} ${t.idle}`, 'dim')] : []),
       ],
@@ -410,7 +411,7 @@ const activity = (input: LayoutInput): Line[] => {
 const compactStats = (input: LayoutInput): Line => {
   const t = input.labels
   const agents = input.agents
-  const { running, idle, done, failed } = summarize(agents, []).agents
+  const { running, waiting, idle, done, failed } = summarize(agents, []).agents
   const ended = done + failed
   const parts: string[] = []
   if (input.git) parts.push(input.ascii ? input.git.branch : `⎇ ${input.git.branch}`)
@@ -419,6 +420,7 @@ const compactStats = (input: LayoutInput): Line => {
   if (fiveHour) parts.push(`5h ${Math.round(fiveHour.percent)}%`)
   parts.push(`${t.statAgents} ${ended}/${agents.length}`)
   parts.push(`${input.ascii ? '*' : '●'} ${running} ${t.running}`)
+  if (waiting > 0) parts.push(`${input.ascii ? '..' : '◐'} ${waiting} ${t.waiting}`)
   if (idle > 0) parts.push(`${input.ascii ? '-' : '○'} ${idle} ${t.idle}`)
   return [seg(GUTTER), seg(parts.join(' · '), 'dim')]
 }

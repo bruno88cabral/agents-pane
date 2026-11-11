@@ -139,8 +139,12 @@ export const isLive = (s: LiveStatus): boolean => LIVE.has(s)
 // ---------- summary ----------
 
 export type Summary = {
-  /** `idle` agents are live but not working: done with their turn, kept for more. */
-  agents: { running: number; idle: number; done: number; failed: number; total: number }
+  /**
+   * All three are live. `running` agents are in a turn (or starting one);
+   * `waiting` ones are held, on background work they own, a plan's approval
+   * or an Agent call; `idle` ones are done with their turn, kept for more.
+   */
+  agents: { running: number; waiting: number; idle: number; done: number; failed: number; total: number }
   tasks: { pending: number; active: number; done: number; total: number }
 }
 
@@ -150,10 +154,12 @@ export const summarize = (
 ): Summary => {
   const live = agents.filter(a => isLive(a.status)).length
   const idle = agents.filter(a => a.status === 'idle').length
+  const waiting = agents.filter(a => a.status === 'waiting').length
   const failed = agents.filter(a => a.status === 'failed' || a.status === 'killed').length
   return {
     agents: {
-      running: live - idle,
+      running: live - idle - waiting,
+      waiting,
       idle,
       failed,
       done: agents.length - live - failed,
@@ -342,6 +348,7 @@ export type Labels = {
   commandDescription: string
   agents: string
   running: string
+  waiting: string
   idle: string
   done: string
   failed: string
@@ -377,6 +384,7 @@ const LABELS: Record<Language, Labels> = {
     commandDescription: 'Open the pane with the agents of this session and their status',
     agents: 'Agents',
     running: 'running',
+    waiting: 'waiting',
     idle: 'idle',
     done: 'done',
     failed: 'failed',
@@ -409,6 +417,7 @@ const LABELS: Record<Language, Labels> = {
     commandDescription: 'Abre o painel com os subagentes desta sessão e o status de cada um',
     agents: 'Agentes',
     running: 'rodando',
+    waiting: 'aguardando',
     idle: 'ociosos',
     done: 'finalizados',
     failed: 'falhos',

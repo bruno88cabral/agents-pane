@@ -40,7 +40,7 @@ The same layout in text, during an orchestration grouped by ticket:
 
 ## Features
 
-- **Repo and context**: the name of the GitHub repo in big letters, three rows tall (the same in every worktree), and under it how full the session's context window is; the bar is green, turns yellow at 70% and red at 85%. The agents bar shows done in green, running in the accent, failed in red and idle (done with its turn, kept alive with its context) dimmed.
+- **Repo and context**: the name of the GitHub repo in big letters, three rows tall (the same in every worktree), and under it how full the session's context window is; the bar is green, turns yellow at 70% and red at 85%. The agents bar shows done in green, running in the accent, failed in red and idle (done with its turn, kept alive with its context) dimmed. Its legend counts waiting agents (`◐`, held on background work they own) apart from running ones.
 - **Branch line**: the branch you are on (or the short hash when HEAD is detached), changed files in yellow, commits ahead (`↑`) and behind (`↓`) the upstream, and `worktree` when the session runs in one. Handy because Claude Code only shows the branch when the conversation starts.
 - **Usage limits and session**: the 5-hour and weekly limits with their reset time and a bar in the context colors, and how long the session has run, with its cost in dollars when you pay per API call. Rows with nothing to show are left out.
 - **Stats table**: context, limits, agents and (when Claude keeps a task list with `TaskCreate` / `TaskUpdate` / `TodoWrite`) tasks, each with its value, a bar of the same width and a percentage, in fixed columns.

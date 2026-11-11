@@ -292,8 +292,19 @@ describe('rules', () => {
     expect(plain(layout({ ...input, height: 10 }))[1]).toBe(' ctx 58% · agents 5/7 · ● 1 running · ○ 1 idle')
   })
 
+  test('the agents row counts waiting agents apart in the legend, not in the bar', async () => {
+    const input = { ...base, width: 90, agents: [...TICKETED, { ...TICKETED[5]!, id: 'w1', status: 'waiting' as const }] }
+    const row = layout(input).header.find(l => l.some(s => s.text.includes('agents ')))!
+    expect(plain({ header: [row], body: [] })[0]).toBe(
+      ' agents     5 / 7 done  ████████████████████  71%   ● 1 running  ◐ 1 waiting',
+    )
+    expect(row.filter(s => /█/.test(s.text)).map(s => s.tone)).toEqual(['ok', 'accent'])
+    expect(plain(layout({ ...input, height: 10 }))[1]).toBe(' ctx 58% · agents 5/7 · ● 1 running · ◐ 1 waiting')
+  })
+
   test('pt-BR calls them ociosos', async () => {
     expect(labels('pt-BR').idle).toBe('ociosos')
+    expect(labels('pt-BR').waiting).toBe('aguardando')
   })
 
   test('only a type other than general-purpose shows', async () => {

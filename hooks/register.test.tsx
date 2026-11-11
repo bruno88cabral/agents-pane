@@ -205,7 +205,10 @@ test('a done agent the engine lists as waiting again shows as running', async ($
 
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   expect(await ui.find({ type: 'Text', text: /^ ◐  Review E1/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /● 2 running/ })).toBeDefined()
+  // a1 is not listed, so it is held too: both count as waiting, none as done.
+  expect(await ui.find({ type: 'Text', text: /agents\s+0 \/ 2 done/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /● 0 running/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /◐ 2 waiting/ })).toBeDefined()
   await ui.unmount()
 })
 
@@ -239,7 +242,8 @@ test('with language pt-BR the pane speaks Portuguese', { options: { language: 'p
   on('state.get', (_, e) => ({ value: { value: SEEDED[e.key], version: 1 } }))
 
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  expect(await ui.find({ type: 'Text', text: /1 rodando/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /0 rodando/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /1 aguardando/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /tarefas\s+1\/3/ })).toBeDefined()
   await ui.unmount()
 })
