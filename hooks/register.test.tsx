@@ -173,14 +173,15 @@ test('an agent stopped with TaskStop ends as failed', async ($, on) => {
   await ui.unmount()
 })
 
-test('an unlisted agent with no tool calls is lost after five minutes', async ($, on) => {
-  mock.clock(on, { now: 40_000 + 5 * 60_000 + 1 })
+test('an unlisted agent with no tool call for five minutes is lost', async ($, on) => {
+  // Started at 40s, one call at 50s, stopped unseen: the clock stops at 10s.
+  mock.clock(on, { now: 50_000 + 5 * 60_000 + 1 })
   on('agent.list', () => ({ value: [] }))
-  const seeded = { ...SEEDED, agents: [{ ...(SEEDED.agents as object[])[0], toolCalls: 0 }] }
+  const seeded = { ...SEEDED, agents: [{ ...(SEEDED.agents as object[])[0], toolCalls: 1, lastCallAt: 50_000 }] }
   on('state.get', (_, e) => ({ value: { value: seeded[e.key], version: 1 } }))
 
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  expect(await ui.find({ type: 'Text', text: /^ ✗  Implement E1 .* 0s/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^ ✗  Implement E1 .* 1t +10s/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /● 0 running/ })).toBeDefined()
   await ui.unmount()
 })

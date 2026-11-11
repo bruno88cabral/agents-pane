@@ -14,6 +14,8 @@ export type AgentRow = {
   startedAt: number
   endedAt?: number
   toolCalls: number
+  /** When the agent last called a tool; absent until its first call. */
+  lastCallAt?: number
 }
 
 export type TaskStatus = 'pending' | 'in_progress' | 'completed'
