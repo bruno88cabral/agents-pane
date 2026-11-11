@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.11.0
+
+- The agents row counts waiting agents apart: `● 0 running  ◐ 1 waiting`, on the full header and in compact mode (`aguardando` in pt-BR). A waiting agent is held, on background work it owns (a test suite, a visual check), a plan's approval or an Agent call, and shows the still `◐` in its row. It stays in the accent part of the bar, with the running ones.
+- An agent the engine does not list (yet to be lost) counts as waiting too, as its still `◐` already said.
+
 ## 0.10.3
 
 - An agent the pane closed (`✓` or `✗`) that the engine lists as live again shows and counts as running: one waiting on background work it owns after its turn ended (a test suite, a visual check), or resumed by a message under the same id. The stored row reopens too, its clock running from its start.

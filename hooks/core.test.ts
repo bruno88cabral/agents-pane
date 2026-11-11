@@ -168,10 +168,10 @@ describe('summary', () => {
       [{ status: 'running' }, { status: 'idle' }, { status: 'idle' }, { status: 'completed' }],
       [],
     )
-    expect(s.agents).toEqual({ running: 1, idle: 2, done: 1, failed: 0, total: 4 })
+    expect(s.agents).toEqual({ running: 1, waiting: 0, idle: 2, done: 1, failed: 0, total: 4 })
   })
 
-  test('counts live states as running and killed as failed', async () => {
+  test('counts live states apart and killed as failed', async () => {
     const s = summarize(
       [
         { status: 'running' },
@@ -181,7 +181,7 @@ describe('summary', () => {
       ],
       [{ status: 'pending' }, { status: 'in_progress' }, { status: 'completed' }],
     )
-    expect(s.agents).toEqual({ running: 2, idle: 0, done: 1, failed: 1, total: 4 })
+    expect(s.agents).toEqual({ running: 1, waiting: 1, idle: 0, done: 1, failed: 1, total: 4 })
     expect(s.tasks).toEqual({ pending: 1, active: 1, done: 1, total: 3 })
   })
 })
