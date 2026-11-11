@@ -22,8 +22,8 @@ export const MAX_ROWS = 200
 export const addAgent = (list: AgentRow[], row: AgentRow): AgentRow[] =>
   list.some(a => a.id === row.id) ? list : [...list, row].slice(-MAX_ROWS)
 
-export const countToolCall = (list: AgentRow[], id: string): AgentRow[] =>
-  list.map(a => (a.id === id ? { ...a, toolCalls: a.toolCalls + 1 } : a))
+export const countToolCall = (list: AgentRow[], id: string, now: number): AgentRow[] =>
+  list.map(a => (a.id === id ? { ...a, toolCalls: a.toolCalls + 1, lastCallAt: now } : a))
 
 /** Closes a running agent. An agent that already ended keeps its first end. */
 export const endAgent = (
@@ -80,20 +80,20 @@ export const settleAgents = (
   })
 }
 
-/** How long a silent agent the harness does not list may still be starting. */
+/** How long an agent the harness does not list may go without a tool call. */
 export const LOST_AFTER_MS = 5 * 60_000
 
+/** The agent's last sign of life: its last tool call, else its start. */
+export const lastSeen = (agent: AgentRow): number => agent.lastCallAt ?? agent.startedAt
+
 /**
- * True for a running agent the harness does not list that never made a tool
- * call and is past LOST_AFTER_MS: it ended without us seeing the end. One
- * that calls tools (a workflow's agent, which the list does not reach) is
- * never lost.
+ * True for a running agent the harness does not list and that has called no
+ * tool for LOST_AFTER_MS: it ended without us seeing the end. A workflow's
+ * agent, which the list does not reach, stays live while it calls tools, and
+ * comes back on its next call.
  */
 export const isLost = (agent: AgentRow, listed: boolean, now: number): boolean =>
-  agent.status === 'running' &&
-  !listed &&
-  agent.toolCalls === 0 &&
-  now - agent.startedAt > LOST_AFTER_MS
+  agent.status === 'running' && !listed && now - lastSeen(agent) > LOST_AFTER_MS
 
 export const upsertTask =(list: TaskRow[], row: TaskRow): TaskRow[] =>
   list.some(t => t.id === row.id)

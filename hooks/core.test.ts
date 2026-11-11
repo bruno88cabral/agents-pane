@@ -47,8 +47,8 @@ describe('agents', () => {
   })
 
   test('countToolCall counts for that agent only', async () => {
-    const list = countToolCall([agent(), agent({ id: 'a2' })], 'a2')
-    expect(list.map(a => a.toolCalls)).toEqual([0, 1])
+    const list = countToolCall([agent(), agent({ id: 'a2' })], 'a2', 7_000)
+    expect(list.map(a => [a.toolCalls, a.lastCallAt])).toEqual([[0, undefined], [1, 7_000]])
   })
 
   test('endAgent closes a running agent and keeps the first end', async () => {
@@ -94,12 +94,14 @@ describe('agents', () => {
     expect(settleAgents(settled, known, 20_000)).toBe(settled)
   })
 
-  test('isLost: unlisted, no tool calls and past the grace only', async () => {
+  test('isLost: unlisted and silent past the grace only', async () => {
     const late = LOST_AFTER_MS + 1
     expect(isLost(agent(), false, late)).toBe(true)
     expect(isLost(agent(), true, late)).toBe(false)
     expect(isLost(agent(), false, LOST_AFTER_MS)).toBe(false)
-    expect(isLost(agent({ toolCalls: 1 }), false, late)).toBe(false)
+    // A call counts from its own time, not from the start.
+    expect(isLost(agent({ toolCalls: 1, lastCallAt: 60_000 }), false, late)).toBe(false)
+    expect(isLost(agent({ toolCalls: 1, lastCallAt: 60_000 }), false, 60_000 + late)).toBe(true)
     expect(isLost(agent({ status: 'completed' }), false, late)).toBe(false)
   })
 })

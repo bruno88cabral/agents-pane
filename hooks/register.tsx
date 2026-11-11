@@ -15,6 +15,7 @@ import {
   endAgent,
   isLive,
   isLost,
+  lastSeen,
   labels,
   parseGit,
   projectName,
@@ -140,7 +141,8 @@ export const register: Register = (on, options) => {
   on('tool.call', async ($, e, next) => {
     if (e.agentId) {
       const id = e.agentId
-      await update($, agents, list => countToolCall(list, id))
+      const now = await $.clock.now()
+      await update($, agents, list => countToolCall(list, id, now))
     }
     return next(e)
   }).catch(($, e, next) => next(e))
@@ -261,12 +263,12 @@ export const register: Register = (on, options) => {
     // longer lists has ended unseen or runs where the list does not reach (a
     // workflow's): still live here, but with nothing to say it is working,
     // so it stays still. It is not idle: idle is only what the engine says.
-    // One that is not listed and never called a tool is lost after a while:
-    // it ended unseen, and shows as failed with no time of its own.
+    // One that is not listed and has called no tool for a while is lost: it
+    // ended unseen, and shows as failed, its clock stopped at its last call.
     const liveById = new Map(live.map(a => [a.id, a.status]))
     const rows = history.map(a => {
       if (isLost(a, liveById.has(a.id), now)) {
-        return { ...a, status: 'failed' as LiveStatus, endedAt: a.startedAt }
+        return { ...a, status: 'failed' as LiveStatus, endedAt: lastSeen(a) }
       }
       const status: LiveStatus = a.status === 'running' ? (liveById.get(a.id) ?? 'waiting') : a.status
       return { ...a, status }

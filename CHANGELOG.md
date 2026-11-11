@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.2
+
+- An agent the engine does not list is lost after 5 minutes without a tool call, not only when it never called one. Agents stopped after a call or two (before 0.10.1 watched `TaskStop`) no longer stay `◐` and running. Their clock stops at their last call.
+
 ## 0.10.1
 
 - An agent stopped with `TaskStop` no longer stays `◐` and counts as running forever: it shows `✗` and counts as failed. A stopped agent gets no `SubagentStop`, so the pane now watches `TaskStop` itself.
