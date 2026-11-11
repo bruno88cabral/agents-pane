@@ -350,6 +350,7 @@ export type Labels = {
   running: string
   waiting: string
   idle: string
+  success: string
   done: string
   failed: string
   total: string
@@ -386,6 +387,7 @@ const LABELS: Record<Language, Labels> = {
     running: 'running',
     waiting: 'waiting',
     idle: 'idle',
+    success: 'success',
     done: 'done',
     failed: 'failed',
     total: 'total',
@@ -419,6 +421,7 @@ const LABELS: Record<Language, Labels> = {
     running: 'rodando',
     waiting: 'aguardando',
     idle: 'ociosos',
+    success: 'com sucesso',
     done: 'finalizados',
     failed: 'falhos',
     total: 'no total',

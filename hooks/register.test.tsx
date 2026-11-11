@@ -70,7 +70,7 @@ test('on the terminal the header stays and only the rows under it are drawn', as
   on('agent.list', () => ({ value: [] }))
   on('state.get', (_, e) => ({ value: { value: e.key === 'agents' ? many(60) : [], version: 1 } }))
 
-  // bodyRows 20: agents row, its blank line and the separator leave 17 rows.
+  // bodyRows 20: agents row and its 6 counts, a blank line and the separator leave 11 rows.
   const ui = await $.ui.mount({
     ...PANE,
     surface: 'terminal',
@@ -78,8 +78,8 @@ test('on the terminal the header stays and only the rows under it are drawn', as
   })
   expect(await ui.find({ type: 'Text', text: /agents\s+60 \/ 60 done/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /Worker 0\./ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /Worker 16\./ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /Worker 17\./ })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /Worker 10\./ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Worker 11\./ })).toBeUndefined()
   await ui.unmount()
 })
 
@@ -129,7 +129,7 @@ test('the header shows the stats table and stays at the scroll offset', async ($
   expect(await ui.find({ type: 'Text', text: /Implement E1/ })).toBeUndefined()
   await ui.unmount()
 
-  // Under 12 rows the pane turns compact: one line of stats, no tasks row.
+  // Under 18 rows the pane turns compact: one line of stats, no tasks row.
   const short = await $.ui.mount({
     ...PANE,
     surface: 'terminal',

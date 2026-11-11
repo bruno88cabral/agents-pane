@@ -65,7 +65,13 @@ describe('scenarios', () => {
       '',
       ' context     583k / 1M  ████████████░░░░░░░░  58%',
       '',
-      ' agents     5 / 6 done  ████████████████████  83%   ● 1 running',
+      ' agents     5 / 6 done  ████████████████████  83%',
+      '                        ● 1 running',
+      '                        ◐ 0 waiting',
+      '                        ○ 0 idle',
+      '                        ✗ 0 failed',
+      '                        ✓ 5 success',
+      '                          5 done',
       '',
       ' ── agents ─────────────────────────────────────────────────────',
       ' MYK-983  spec S0',
@@ -90,7 +96,8 @@ describe('scenarios', () => {
       '',
       ' context     583k / 1M  ████████████░░░░░░░░  58%',
       '',
-      ' agents     6 / 7 done  ████████████████████  86%   ● 1 running',
+      ' agents     6 / 7 done  ████████████████████  86%',
+      ...breakdown({ running: 1, success: 6 }),
       '',
       ' ── agents ─────────────────────────────────────────────────────',
       ' MYK-983  spec S0',
@@ -117,7 +124,8 @@ describe('scenarios', () => {
       '',
       ' context     583k / 1M  ████████████░░░░░░░░  58%',
       '',
-      ' agents     2 / 3 done  ████████████████████  67%   ● 1 running',
+      ' agents     2 / 3 done  ████████████████████  67%',
+      ...breakdown({ running: 1, failed: 1, success: 1 }),
       ' tasks      3 / 5 done  ████████████████░░░░  60%   ◐ 1 active',
       '',
       ' ── agents ─────────────────────────────────────────────────────',
@@ -149,6 +157,7 @@ describe('scenarios', () => {
       ' context     583k / 1M  ██████░░░░░  58%',
       '',
       ' agents     5 / 6 done  ███████████  83%',
+      ...breakdown({ running: 1, success: 5 }),
       '',
       ' ── agents ─────────────────────────────',
       ' MYK-983  spec S0',
@@ -171,7 +180,8 @@ describe('scenarios', () => {
       '',
       ' context     583k / 1M  ############--------  58%',
       '',
-      ' agents     5 / 6 done  ####################  83%   * 1 running',
+      ' agents     5 / 6 done  ####################  83%',
+      ...breakdown({ running: 1, success: 5 }, true),
       '',
       ' -- agents -----------------------------------------------------',
       ' MYK-983  spec S0',
@@ -196,7 +206,8 @@ describe('scenarios', () => {
       '',
       ' context     583k / 1M  ████████████░░░░░░░░  58%',
       '',
-      ' agents     1 / 1 done  ████████████████████ 100%   ● 0 running',
+      ' agents     1 / 1 done  ████████████████████ 100%',
+      ...breakdown({ success: 1 }),
       '',
       ' ── agents ─────────────────────────────────────────────────────',
       ' MYK-990  Rewrite the whole renderer so that every column lines…',
@@ -206,17 +217,41 @@ describe('scenarios', () => {
 
 })
 
+/**
+ * The rows under the agents bar, one per state, as the pane draws them: the
+ * counts lined up to the total's width, done the sum of failed and success.
+ */
+const breakdown = (
+  n: { running?: number; waiting?: number; idle?: number; failed?: number; success?: number },
+  ascii = false,
+): string[] => {
+  const c = { running: 0, waiting: 0, idle: 0, failed: 0, success: 0, ...n }
+  const digits = String(c.running + c.waiting + c.idle + c.failed + c.success).length
+  const g = ascii ? ['*', '..', '-', 'x', 'ok', ''] : ['●', '◐', '○', '✗', '✓', '']
+  const rows: Array<[string, number, string]> = [
+    [g[0]!, c.running, 'running'],
+    [g[1]!, c.waiting, 'waiting'],
+    [g[2]!, c.idle, 'idle'],
+    [g[3]!, c.failed, 'failed'],
+    [g[4]!, c.success, 'success'],
+    [g[5]!, c.failed + c.success, 'done'],
+  ]
+  return rows.map(([glyph, v, word]) =>
+    `${' '.repeat(24)}${glyph.padEnd(ascii ? 2 : 1)} ${String(v).padStart(digits)} ${word}`.trimEnd(),
+  )
+}
+
 describe('rules', () => {
   test('below 40 columns the mode and the sparkline go, the right columns stay', async () => {
     const lines = plain(layout({ ...base, width: 39 }))
-    const row = lines.find(l => l.includes('Maxwell') === false && l.includes('◐'))
+    const row = lines.find(l => l.startsWith('   ◐'))
     expect(row).toBe('   ◐  Implement             41t    2m08')
     expect(lines.some(l => l.includes(' bg'))).toBe(false)
   })
 
-  test('from 12 rows the pane is no longer compact', async () => {
-    expect(plain(layout({ ...base, height: 11 }))[0]).toBe(' RACING-WEB')
-    expect(plain(layout({ ...base, height: 12, agents: TICKETED.slice(0, 1) }))[0]).toBe(' █▀▄ ▄▀▄ ▄▀▀ ▀█▀ █▀▄ ▄▀▀     █ █ █▀▀ █▀▄')
+  test('from 18 rows the pane is no longer compact', async () => {
+    expect(plain(layout({ ...base, height: 17 }))[0]).toBe(' RACING-WEB')
+    expect(plain(layout({ ...base, height: 18, agents: TICKETED.slice(0, 1) }))[0]).toBe(' █▀▄ ▄▀▄ ▄▀▀ ▀█▀ █▀▄ ▄▀▀     █ █ █▀▀ █▀▄')
   })
 
   test('off the terminal the name is a title, not big letters', async () => {
@@ -231,7 +266,8 @@ describe('rules', () => {
   test('no agents yet says so under the separator', async () => {
     const lines = plain(layout({ ...base, agents: [] }))
     expect(lines.at(-1)).toBe(' No agents in this session yet.')
-    expect(lines).toContain(' agents     0 / 0 done  ░░░░░░░░░░░░░░░░░░░░        ● 0 running')
+    expect(lines).toContain(' agents     0 / 0 done  ░░░░░░░░░░░░░░░░░░░░')
+    expect(lines).toEqual(expect.arrayContaining(breakdown({})))
   })
 
   test('the bars are colored: agents done, running and failed; tasks done and active', async () => {
@@ -282,23 +318,25 @@ describe('rules', () => {
     expect(layout({ ...base, ascii: true, agents: [idle] }).body.map(l => l[1])).toEqual([{ text: '- ', tone: 'dim' }])
   })
 
-  test('the agents row counts idle agents apart, in the bar and the legend', async () => {
+  test('under the agents bar, one row per state: idle dim in the bar too', async () => {
     const input = { ...base, width: 80, agents: [...TICKETED, { ...TICKETED[5]!, id: 'i1', status: 'idle' as const }] }
-    const row = layout(input).header.find(l => l.some(s => s.text.includes('agents ')))!
-    expect(plain({ header: [row], body: [] })[0]).toBe(
-      ' agents     5 / 7 done  ████████████████████  71%   ● 1 running  ○ 1 idle',
-    )
-    expect(row.filter(s => /█/.test(s.text)).map(s => s.tone)).toEqual(['ok', 'accent', 'dim'])
+    const { header } = layout(input)
+    const at = header.findIndex(l => l.some(s => s.text.includes('agents ')))
+    expect(plain({ header: header.slice(at, at + 7), body: [] })).toEqual([
+      ' agents     5 / 7 done  ████████████████████  71%',
+      ...breakdown({ running: 1, idle: 1, success: 5 }),
+    ])
+    expect(header[at]!.filter(s => /█/.test(s.text)).map(s => s.tone)).toEqual(['ok', 'accent', 'dim'])
+    expect(header.slice(at + 1, at + 7).map(l => l[1]!.tone)).toEqual(['accent', 'accent', 'dim', 'error', 'ok', undefined])
     expect(plain(layout({ ...input, height: 10 }))[1]).toBe(' ctx 58% · agents 5/7 · ● 1 running · ○ 1 idle')
   })
 
-  test('the agents row counts waiting agents apart in the legend, not in the bar', async () => {
+  test('a waiting agent has its own row under the bar, and stays in the accent part of the bar', async () => {
     const input = { ...base, width: 90, agents: [...TICKETED, { ...TICKETED[5]!, id: 'w1', status: 'waiting' as const }] }
-    const row = layout(input).header.find(l => l.some(s => s.text.includes('agents ')))!
-    expect(plain({ header: [row], body: [] })[0]).toBe(
-      ' agents     5 / 7 done  ████████████████████  71%   ● 1 running  ◐ 1 waiting',
-    )
-    expect(row.filter(s => /█/.test(s.text)).map(s => s.tone)).toEqual(['ok', 'accent'])
+    const { header } = layout(input)
+    const at = header.findIndex(l => l.some(s => s.text.includes('agents ')))
+    expect(plain({ header: header.slice(at + 1, at + 7), body: [] })).toEqual(breakdown({ running: 1, waiting: 1, success: 5 }))
+    expect(header[at]!.filter(s => /█/.test(s.text)).map(s => s.tone)).toEqual(['ok', 'accent'])
     expect(plain(layout({ ...input, height: 10 }))[1]).toBe(' ctx 58% · agents 5/7 · ● 1 running · ◐ 1 waiting')
   })
 
@@ -315,16 +353,16 @@ describe('rules', () => {
 })
 
 describe('a header that leaves the list no room', () => {
-  // The full header of `base` takes 9 rows.
+  // The full header of `base` takes 15 rows.
   test('on the terminal it turns compact when under 5 agent rows would show', async () => {
-    expect(plain(layout({ ...base, height: 14 }))[0]).toBe(' █▀▄ ▄▀▄ ▄▀▀ ▀█▀ █▀▄ ▄▀▀     █ █ █▀▀ █▀▄')
-    expect(plain(layout({ ...base, height: 13 }))[0]).toBe(' RACING-WEB')
+    expect(plain(layout({ ...base, height: 20 }))[0]).toBe(' █▀▄ ▄▀▄ ▄▀▀ ▀█▀ █▀▄ ▄▀▀     █ █ █▀▀ █▀▄')
+    expect(plain(layout({ ...base, height: 19 }))[0]).toBe(' RACING-WEB')
   })
 
   test('a short list asks only for its own rows', async () => {
     const two = TICKETED.slice(0, 2)
-    expect(plain(layout({ ...base, height: 11, agents: two }))[0]).toBe(' RACING-WEB')
-    expect(plain(layout({ ...base, height: 12, agents: two }))[0]).toBe(' █▀▄ ▄▀▄ ▄▀▀ ▀█▀ █▀▄ ▄▀▀     █ █ █▀▀ █▀▄')
+    expect(plain(layout({ ...base, height: 17, agents: two }))[0]).toBe(' RACING-WEB')
+    expect(plain(layout({ ...base, height: 18, agents: two }))[0]).toBe(' █▀▄ ▄▀▄ ▄▀▀ ▀█▀ █▀▄ ▄▀▀     █ █ █▀▀ █▀▄')
   })
 
   test('the other surfaces scroll their own way and keep the full header', async () => {
@@ -555,7 +593,8 @@ describe('branch, limits and session', () => {
       ` week     ${week}  ██████████████░░░░░░  72%`,
       ' session         2h14m  $3.42',
       '',
-      ' agents     2 / 2 done  ████████████████████ 100%   ● 0 running',
+      ' agents     2 / 2 done  ████████████████████ 100%',
+      ...breakdown({ success: 2 }),
       '',
       ' ── agents ─────────────────────────────────────────────────────',
     ])
@@ -575,7 +614,8 @@ describe('branch, limits and session', () => {
       '',
       ' session         2h14m  $3.42',
       '',
-      ' agents     2 / 2 done  ████████████████████ 100%   ● 0 running',
+      ' agents     2 / 2 done  ████████████████████ 100%',
+      ...breakdown({ success: 2 }),
       '',
       ' ── agents ─────────────────────────────────────────────────────',
     ])

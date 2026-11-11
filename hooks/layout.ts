@@ -51,7 +51,7 @@ export type LayoutInput = {
 /** The header stays put while the body scrolls under it. */
 export type Layout = { header: Line[]; body: Line[] }
 
-export const COMPACT_HEIGHT = 12
+export const COMPACT_HEIGHT = 18
 /** From this height the terminal has room for a blank line between the rows. */
 export const SPACED_HEIGHT = 40
 export const NARROW_WIDTH = 40
@@ -356,7 +356,7 @@ const usage = (input: LayoutInput): Line[] => {
 }
 
 /** What is running: the agents and the orchestration tasks. */
-const activity = (input: LayoutInput): Line[] => {
+const activity = (input: LayoutInput): Row[] => {
   const t = input.labels
   const fillWidth = barWidthFor(input)
   const lines: Line[] = []
@@ -382,18 +382,33 @@ const activity = (input: LayoutInput): Line[] => {
       ),
       agents.length > 0 ? `${percent(done + failed, agents.length)}%` : '',
       undefined,
-      [
-        seg(`   ${dot} ${running} ${t.running}`, 'accent'),
-        ...(waiting > 0 ? [seg(`  ${input.ascii ? '..' : '◐'} ${waiting} ${t.waiting}`, 'accent')] : []),
-        ...(failed > 0 ? [seg(`  ${input.ascii ? 'x' : '✗'} ${failed} ${t.failed}`, 'error')] : []),
-        ...(idle > 0 ? [seg(`  ${input.ascii ? '-' : '○'} ${idle} ${t.idle}`, 'dim')] : []),
-      ],
+      [],
     ),
   )
 
+  // Under the bar, one row per state, the counts lined up: done is failed
+  // and success together.
+  const counts: Array<[string, number, string, Tone | undefined]> = [
+    [dot, running, t.running, 'accent'],
+    [input.ascii ? '..' : '◐', waiting, t.waiting, 'accent'],
+    [input.ascii ? '-' : '○', idle, t.idle, 'dim'],
+    [input.ascii ? 'x' : '✗', failed, t.failed, 'error'],
+    [input.ascii ? 'ok' : '✓', done, t.success, 'ok'],
+    ['', done + failed, t.done, undefined],
+  ]
+  const digits = String(agents.length).length
+  const indent = ' '.repeat(GUTTER.length + LABEL + VALUE + 2)
+  const glyphWidth = input.ascii ? 2 : 1
+  const breakdown: Line[] = counts.map(([glyph, n, word, tone]) => [
+    seg(indent),
+    seg(`${glyph.padEnd(glyphWidth)} ${String(n).padStart(digits)} ${word}`, tone),
+  ])
+
+  // The bar and its breakdown stay together, never spaced apart.
+  const rows: Row[] = [[...lines, ...breakdown]]
   const tasks = input.tasks
   if (tasks && tasks.total > 0) {
-    lines.push(
+    rows.push(
       statRow(
         t.statTasks,
         ratio(tasks.done, tasks.total, t.doneShort),
@@ -405,7 +420,7 @@ const activity = (input: LayoutInput): Line[] => {
       ),
     )
   }
-  return lines
+  return rows
 }
 
 const compactStats = (input: LayoutInput): Line => {
@@ -431,14 +446,25 @@ const separator = (input: LayoutInput): Line => {
   return [seg(GUTTER), seg(head + dash.repeat(Math.max(0, input.width - GUTTER.length - head.length)), 'dim')]
 }
 
+/** A line of a block, or lines that stay together, never spaced apart. */
+type Row = Line | Line[]
+
+const isGroup = (row: Row): row is Line[] => Array.isArray(row[0])
+
 /**
  * The blocks one under another, a blank line between them and, when
  * `spaced`, between their rows too. Empty blocks drop out.
  */
-const stack = (blocks: Line[][], spaced: boolean): Line[] =>
+const stack = (blocks: Row[][], spaced: boolean): Line[] =>
   blocks
     .filter(block => block.length > 0)
-    .flatMap(block => [...(spaced ? block.flatMap((l, i) => (i > 0 ? [blank, l] : [l])) : block), blank])
+    .flatMap(block => [
+      ...block.flatMap((row, i) => [
+        ...(spaced && i > 0 ? [blank] : []),
+        ...(isGroup(row) ? row : [row]),
+      ]),
+      blank,
+    ])
 
 // ---------- the pane ----------
 
