@@ -63,20 +63,32 @@ export const adoptAgents = (
 }
 
 /**
- * Closes the running agents the harness reports as ended (completed, failed,
- * killed), so the end stays after the harness stops listing them. An agent
- * stopped from outside (TaskStop) gets no SubagentStop: this is its end.
+ * Brings the stored rows in line with what the harness lists. A running agent
+ * it reports as ended (completed, failed, killed) is closed, so the end stays
+ * after the harness stops listing it: an agent stopped from outside (TaskStop)
+ * gets no SubagentStop. An ended agent it lists as live again is reopened: one
+ * waiting on background work it owns after its turn, or resumed by a message
+ * under the same id.
  */
 export const settleAgents = (
   list: AgentRow[],
   known: ReadonlyArray<{ id: string; status: LiveStatus }>,
   now: number,
 ): AgentRow[] => {
-  const ended = new Map(known.filter(a => !isLive(a.status)).map(a => [a.id, a.status]))
-  if (!list.some(a => a.status === 'running' && ended.has(a.id))) return list
+  const status = new Map(known.map(a => [a.id, a.status]))
+  const drift = (a: AgentRow): boolean => {
+    const to = status.get(a.id)
+    return to !== undefined && isLive(to) !== (a.status === 'running')
+  }
+  if (!list.some(drift)) return list
   return list.map(a => {
-    const to = a.status === 'running' ? ended.get(a.id) : undefined
-    return to ? { ...a, status: to === 'completed' ? 'completed' : 'failed', endedAt: now } : a
+    if (!drift(a)) return a
+    const to = status.get(a.id)!
+    if (isLive(to)) {
+      const { endedAt: _, ...open } = a
+      return { ...open, status: 'running' }
+    }
+    return { ...a, status: to === 'completed' ? 'completed' : 'failed', endedAt: now }
   })
 }
 
