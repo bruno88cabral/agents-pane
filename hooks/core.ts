@@ -62,7 +62,40 @@ export const adoptAgents = (
   return [...list, ...rows].slice(-MAX_ROWS)
 }
 
-export const upsertTask = (list: TaskRow[], row: TaskRow): TaskRow[] =>
+/**
+ * Closes the running agents the harness reports as ended (completed, failed,
+ * killed), so the end stays after the harness stops listing them. An agent
+ * stopped from outside (TaskStop) gets no SubagentStop: this is its end.
+ */
+export const settleAgents = (
+  list: AgentRow[],
+  known: ReadonlyArray<{ id: string; status: LiveStatus }>,
+  now: number,
+): AgentRow[] => {
+  const ended = new Map(known.filter(a => !isLive(a.status)).map(a => [a.id, a.status]))
+  if (!list.some(a => a.status === 'running' && ended.has(a.id))) return list
+  return list.map(a => {
+    const to = a.status === 'running' ? ended.get(a.id) : undefined
+    return to ? { ...a, status: to === 'completed' ? 'completed' : 'failed', endedAt: now } : a
+  })
+}
+
+/** How long a silent agent the harness does not list may still be starting. */
+export const LOST_AFTER_MS = 5 * 60_000
+
+/**
+ * True for a running agent the harness does not list that never made a tool
+ * call and is past LOST_AFTER_MS: it ended without us seeing the end. One
+ * that calls tools (a workflow's agent, which the list does not reach) is
+ * never lost.
+ */
+export const isLost = (agent: AgentRow, listed: boolean, now: number): boolean =>
+  agent.status === 'running' &&
+  !listed &&
+  agent.toolCalls === 0 &&
+  now - agent.startedAt > LOST_AFTER_MS
+
+export const upsertTask =(list: TaskRow[], row: TaskRow): TaskRow[] =>
   list.some(t => t.id === row.id)
     ? list.map(t => (t.id === row.id ? { ...t, ...row } : t))
     : [...list, row]

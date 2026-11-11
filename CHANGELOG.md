@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.1
+
+- An agent stopped with `TaskStop` no longer stays `◐` and counts as running forever: it shows `✗` and counts as failed. A stopped agent gets no `SubagentStop`, so the pane now watches `TaskStop` itself.
+- When the engine lists an agent as completed, failed or killed, the pane keeps that end, even after the engine stops listing the agent.
+- An agent the engine does not list, with no tool calls, more than 5 minutes after it started, has ended unseen: it shows `✗` with `0s` and no longer counts as running. An unlisted agent that calls tools (a workflow's) stays live as before.
+
 ## 0.10.0
 
 - Idle agents, done with their turn but kept alive with their context, are no longer counted as running. They show a dim `○` (`-` in ASCII), their own dim segment in the agents bar and `○ 1 idle` after the running count, on the full header and in compact mode.

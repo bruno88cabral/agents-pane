@@ -152,6 +152,39 @@ test('an agent the engine no longer lists stops spinning', async ($, on) => {
   await ui.unmount()
 })
 
+test('an agent stopped with TaskStop ends as failed', async ($, on) => {
+  mock.clock(on, { now: 100_000 })
+  on('agent.list', () => ({ value: [] }))
+  on('tool.call', { tool: 'TaskStop' }, () => ({
+    result: { message: 'Successfully stopped task: a1', task_id: 'a1', task_type: 'local_agent', command: 'Implement E1' },
+  }))
+  on('agent.spawn', () => ({ model: 'claude-opus-5-5', agentId: 'a1' }))
+
+  const spawn = $.agent.spawn as unknown as (e: object) => Promise<unknown>
+  await spawn({
+    tool_use_id: 'toolu_1', prompt: 'Implement E1', description: 'Implement E1',
+    subagentType: 'general-purpose', background: true, parentModel: 'claude-opus-5-5',
+  })
+  await $.tool.call({ tool: 'TaskStop', task_id: 'a1' })
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /^ ✗  Implement E1/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /● 0 running/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('an unlisted agent with no tool calls is lost after five minutes', async ($, on) => {
+  mock.clock(on, { now: 40_000 + 5 * 60_000 + 1 })
+  on('agent.list', () => ({ value: [] }))
+  const seeded = { ...SEEDED, agents: [{ ...(SEEDED.agents as object[])[0], toolCalls: 0 }] }
+  on('state.get', (_, e) => ({ value: { value: seeded[e.key], version: 1 } }))
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /^ ✗  Implement E1 .* 0s/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /● 0 running/ })).toBeDefined()
+  await ui.unmount()
+})
+
 test('an agent the engine lists as waiting stays still', async ($, on) => {
   mock.clock(on, { now: 100_000 })
   on('agent.list', () => ({ value: [{ ...LIVE_A1, status: 'waiting' }] }))
